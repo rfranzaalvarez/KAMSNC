@@ -5,9 +5,9 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { AppLayout } from './components/AppLayout';
 import { initOfflineSync } from './lib/offline';
 import LoginPage from './pages/LoginPage';
+import HomePage from './pages/HomePage';
 import ChannelsPage from './pages/ChannelsPage';
 import {
-  HomePage,
   PipelinePage,
   CalendarPage,
   DashboardPage,
@@ -16,12 +16,11 @@ import {
 // Inicializar sincronización offline
 initOfflineSync();
 
-// React Query client con defaults sensatos
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 2, // 2 min antes de refetch
-      gcTime: 1000 * 60 * 10,    // 10 min en caché
+      staleTime: 1000 * 60 * 2,
+      gcTime: 1000 * 60 * 10,
       retry: 2,
       refetchOnWindowFocus: true,
     },
@@ -34,10 +33,7 @@ export default function App() {
       <AuthProvider>
         <BrowserRouter>
           <Routes>
-            {/* Ruta pública */}
             <Route path="/login" element={<LoginPage />} />
-
-            {/* Rutas protegidas con layout */}
             <Route
               element={
                 <ProtectedRoute>
@@ -50,8 +46,6 @@ export default function App() {
               <Route path="/pipeline" element={<PipelinePage />} />
               <Route path="/calendar" element={<CalendarPage />} />
             </Route>
-
-            {/* Ruta de manager (protegida + requiere rol) */}
             <Route
               path="/dashboard"
               element={
@@ -62,8 +56,6 @@ export default function App() {
             >
               <Route index element={<DashboardPage />} />
             </Route>
-
-            {/* Redirect por defecto */}
             <Route path="*" element={<Navigate to="/home" replace />} />
           </Routes>
         </BrowserRouter>
