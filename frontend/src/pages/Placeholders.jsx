@@ -9,15 +9,6 @@ export function HomePage() {
   );
 }
 
-export function ChannelsPage() {
-  return (
-    <div>
-      <h1 className="text-xl font-extrabold mb-1">Canales</h1>
-      <p className="text-sm text-text-secondary">Catálogo de canales — se construye en el paso 03</p>
-    </div>
-  );
-}
-
 export function PipelinePage() {
   return (
     <div>
