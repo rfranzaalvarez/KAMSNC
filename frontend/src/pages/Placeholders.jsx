@@ -1,14 +1,3 @@
-// Placeholder pages — se irán reemplazando en los pasos siguientes
-
-export function HomePage() {
-  return (
-    <div>
-      <h1 className="text-xl font-extrabold mb-1">Buenos días 👋</h1>
-      <p className="text-sm text-text-secondary">Página "Mi día" — se construye en el paso 06</p>
-    </div>
-  );
-}
-
 export function PipelinePage() {
   return (
     <div>
