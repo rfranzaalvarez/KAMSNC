@@ -5,9 +5,9 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { AppLayout } from './components/AppLayout';
 import { initOfflineSync } from './lib/offline';
 import LoginPage from './pages/LoginPage';
+import ChannelsPage from './pages/ChannelsPage';
 import {
   HomePage,
-  ChannelsPage,
   PipelinePage,
   CalendarPage,
   DashboardPage,
@@ -47,7 +47,6 @@ export default function App() {
             >
               <Route path="/home" element={<HomePage />} />
               <Route path="/channels" element={<ChannelsPage />} />
-              {/* <Route path="/channels/:id" element={<ChannelDetailPage />} /> */}
               <Route path="/pipeline" element={<PipelinePage />} />
               <Route path="/calendar" element={<CalendarPage />} />
             </Route>
