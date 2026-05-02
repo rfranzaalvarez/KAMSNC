@@ -5,7 +5,7 @@ import { useAuthContext } from '../components/AuthProvider';
 import AccountPlan from '../components/AccountPlan';
 import {
   Search, Plus, Building2, Phone, Mail, MapPin,
-  ChevronRight, User, X, Check, Loader2
+  ChevronRight, User, X, Check, Loader2, Edit3
 } from 'lucide-react';
 
 const STATUS_CONFIG = {
@@ -170,9 +170,14 @@ function ChannelList({ channels, loading, onSelect, filter, setFilter, search, s
 
 // ============ DETALLE DE CANAL ============
 function ChannelDetail({ channelId, onBack }) {
+  const { user } = useAuthContext();
   const [channel, setChannel] = useState(null);
   const [visits, setVisits] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [editMode, setEditMode] = useState(false);
+  const [editForm, setEditForm] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [editError, setEditError] = useState('');
 
   useEffect(() => {
     loadChannel();
@@ -181,15 +186,24 @@ function ChannelDetail({ channelId, onBack }) {
   async function loadChannel() {
     setLoading(true);
     try {
-      // Canal
       const { data: ch } = await supabase
         .from('channels')
         .select('*')
         .eq('id', channelId)
         .single();
       setChannel(ch);
+      setEditForm({
+        name: ch?.name || '',
+        channel_type: ch?.channel_type || 'other',
+        contact_name: ch?.contact_name || '',
+        phone: ch?.phone || '',
+        email: ch?.email || '',
+        address: ch?.address || '',
+        city: ch?.city || '',
+        notes: ch?.notes || '',
+        status: ch?.status || 'prospect',
+      });
 
-      // Visitas del canal
       const { data: v } = await supabase
         .from('visits')
         .select('*')
@@ -203,6 +217,56 @@ function ChannelDetail({ channelId, onBack }) {
       setLoading(false);
     }
   }
+
+  function startEdit() {
+    setEditForm({
+      name: channel.name || '',
+      channel_type: channel.channel_type || 'other',
+      contact_name: channel.contact_name || '',
+      phone: channel.phone || '',
+      email: channel.email || '',
+      address: channel.address || '',
+      city: channel.city || '',
+      notes: channel.notes || '',
+      status: channel.status || 'prospect',
+    });
+    setEditMode(true);
+    setEditError('');
+  }
+
+  async function saveEdit() {
+    if (!editForm.name.trim()) {
+      setEditError('El nombre es obligatorio');
+      return;
+    }
+    setSaving(true);
+    setEditError('');
+    try {
+      const { error } = await supabase
+        .from('channels')
+        .update({
+          name: editForm.name.trim(),
+          channel_type: editForm.channel_type,
+          contact_name: editForm.contact_name || null,
+          phone: editForm.phone || null,
+          email: editForm.email || null,
+          address: editForm.address || null,
+          city: editForm.city || null,
+          notes: editForm.notes || null,
+          status: editForm.status,
+        })
+        .eq('id', channelId);
+      if (error) throw error;
+      setChannel(prev => ({ ...prev, ...editForm, name: editForm.name.trim() }));
+      setEditMode(false);
+    } catch (err) {
+      setEditError(err.message || 'Error al guardar');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const updateField = (field, value) => setEditForm(prev => ({ ...prev, [field]: value }));
 
   if (loading) {
     return (
@@ -239,26 +303,118 @@ function ChannelDetail({ channelId, onBack }) {
       </button>
 
       <div className="bg-surface-1 border border-surface-3 rounded-2xl p-4 mb-4">
-        <div className="flex items-start gap-3 mb-3">
-          <div className={`w-12 h-12 rounded-xl ${status.bg} ${status.text} flex items-center justify-center text-lg font-extrabold flex-shrink-0`}>
-            {channel.name.charAt(0)}
-          </div>
-          <div className="flex-1">
-            <h2 className="text-lg font-extrabold tracking-tight">{channel.name}</h2>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-xs text-text-secondary">{type}</span>
-              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${status.bg} ${status.text}`}>
-                {status.label}
-              </span>
-              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-300">
-                {pipeline}
-              </span>
+        {editMode ? (
+          /* ---- MODO EDICIÓN ---- */
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-base font-bold text-text-primary">Editar canal</h2>
+              <button onClick={() => setEditMode(false)} className="text-text-muted hover:text-text-primary">
+                <X size={18} />
+              </button>
+            </div>
+
+            {editError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3 text-xs text-red-600">{editError}</div>
+            )}
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Nombre *</label>
+                <input type="text" value={editForm.name} onChange={(e) => updateField('name', e.target.value)}
+                  className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Tipo</label>
+                  <select value={editForm.channel_type} onChange={(e) => updateField('channel_type', e.target.value)}
+                    className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500">
+                    {Object.entries(TYPE_CONFIG).map(([key, label]) => (
+                      <option key={key} value={key}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Estado</label>
+                  <select value={editForm.status} onChange={(e) => updateField('status', e.target.value)}
+                    className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500">
+                    {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
+                      <option key={key} value={key}>{cfg.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Contacto</label>
+                <input type="text" value={editForm.contact_name} onChange={(e) => updateField('contact_name', e.target.value)}
+                  placeholder="Nombre del contacto" className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Teléfono</label>
+                  <input type="tel" value={editForm.phone} onChange={(e) => updateField('phone', e.target.value)}
+                    className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Email</label>
+                  <input type="email" value={editForm.email} onChange={(e) => updateField('email', e.target.value)}
+                    className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Dirección</label>
+                <input type="text" value={editForm.address} onChange={(e) => updateField('address', e.target.value)}
+                  className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Ciudad</label>
+                <input type="text" value={editForm.city} onChange={(e) => updateField('city', e.target.value)}
+                  className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500" />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Notas</label>
+                <textarea value={editForm.notes} onChange={(e) => updateField('notes', e.target.value)}
+                  rows={2} className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm resize-none focus:outline-none focus:border-brand-500" />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button onClick={saveEdit} disabled={saving}
+                  className="flex-1 py-2.5 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-bold rounded-xl text-sm transition-colors flex items-center justify-center gap-1.5">
+                  {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                  Guardar
+                </button>
+                <button onClick={() => setEditMode(false)}
+                  className="px-4 py-2.5 border border-surface-3 text-text-secondary rounded-xl text-sm font-semibold hover:bg-surface-2 transition-colors">
+                  Cancelar
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          /* ---- MODO LECTURA ---- */
+          <>
+            <div className="flex items-start gap-3 mb-3">
+              <div className={`w-12 h-12 rounded-xl ${status.bg} ${status.text} flex items-center justify-center text-lg font-extrabold flex-shrink-0`}>
+                {channel.name.charAt(0)}
+              </div>
+              <div className="flex-1">
+                <h2 className="text-lg font-extrabold tracking-tight">{channel.name}</h2>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-xs text-text-secondary">{type}</span>
+                  <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${status.bg} ${status.text}`}>
+                    {status.label}
+                  </span>
+                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-300">
+                    {pipeline}
+                  </span>
+                </div>
+              </div>
+              <button onClick={startEdit}
+                className="p-2 rounded-lg hover:bg-surface-2 text-text-muted hover:text-text-primary transition-colors flex-shrink-0">
+                <Edit3 size={16} />
+              </button>
+            </div>
 
-        {/* Datos de contacto */}
-        <div className="space-y-2 mt-4">
+            {/* Datos de contacto */}
+            <div className="space-y-2 mt-4">
           {channel.contact_name && (
             <div className="flex items-center gap-2.5 text-sm">
               <User size={14} className="text-text-muted flex-shrink-0" />
@@ -290,6 +446,8 @@ function ChannelDetail({ channelId, onBack }) {
             <div className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Notas</div>
             <p className="text-xs text-text-secondary leading-relaxed">{channel.notes}</p>
           </div>
+        )}
+          </>
         )}
       </div>
 
