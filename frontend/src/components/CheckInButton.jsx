@@ -487,7 +487,7 @@ export function CheckInButton({ className = '' }) {
         <button
           onClick={startCheckin}
           disabled={loading}
-          className={`w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20 ${className}`}
+          className={`w-full py-4 bg-gradient-to-r from-brand-500 to-brand-700 hover:from-brand-400 hover:to-brand-600 disabled:opacity-50 text-white font-bold rounded-2xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-brand-500/20 ${className}`}
         >
           {loading ? (
             <>
