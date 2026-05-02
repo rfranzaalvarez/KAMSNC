@@ -114,11 +114,11 @@ export default function HomePage() {
 
       {/* Alertas */}
       {alerts.length > 0 && (
-        <div className="bg-gradient-to-br from-red-950/30 to-surface-1 border border-red-500/20 rounded-2xl p-3.5">
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-3.5">
           <div className="flex items-center justify-between mb-2.5">
             <div className="flex items-center gap-2">
-              <span className="w-5 h-5 rounded-md bg-red-500/20 flex items-center justify-center text-[10px]">🔔</span>
-              <span className="text-xs font-bold">Alertas</span>
+              <span className="w-5 h-5 rounded-md bg-red-100 flex items-center justify-center text-[10px]">🔔</span>
+              <span className="text-xs font-bold text-text-primary">Alertas</span>
               <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-red-500 text-white min-w-[18px] text-center">
                 {alerts.length}
               </span>
@@ -132,8 +132,8 @@ export default function HomePage() {
             return (
               <div
                 key={alert.id}
-                className={`flex items-start gap-2 py-2.5 px-2 rounded-lg ${i === 0 ? 'bg-white/[0.03]' : ''} ${
-                  i < alerts.length - 1 ? 'border-b border-white/5' : ''
+                className={`flex items-start gap-2 py-2.5 px-2 rounded-lg ${i === 0 ? 'bg-white/60' : ''} ${
+                  i < alerts.length - 1 ? 'border-b border-red-100' : ''
                 }`}
               >
                 <span className="text-sm mt-0.5 flex-shrink-0">{icon}</span>
@@ -166,15 +166,15 @@ export default function HomePage() {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-2">
         <div className="bg-surface-1 border border-surface-3 rounded-xl p-3 text-center">
-          <div className="text-xl font-extrabold text-blue-400">{stats.today}</div>
+          <div className="text-xl font-extrabold text-brand-500">{stats.today}</div>
           <div className="text-[9px] text-text-secondary uppercase tracking-wider font-semibold mt-0.5">Hoy</div>
         </div>
         <div className="bg-surface-1 border border-surface-3 rounded-xl p-3 text-center">
-          <div className="text-xl font-extrabold text-purple-400">{stats.week}<span className="text-sm text-text-muted">/{stats.weekTarget}</span></div>
+          <div className="text-xl font-extrabold text-navy-500">{stats.week}<span className="text-sm text-text-muted">/{stats.weekTarget}</span></div>
           <div className="text-[9px] text-text-secondary uppercase tracking-wider font-semibold mt-0.5">Semana</div>
         </div>
         <div className="bg-surface-1 border border-surface-3 rounded-xl p-3 text-center">
-          <div className="text-xl font-extrabold text-green-400">{stats.pipeline}</div>
+          <div className="text-xl font-extrabold text-green-600">{stats.pipeline}</div>
           <div className="text-[9px] text-text-secondary uppercase tracking-wider font-semibold mt-0.5">Pipeline</div>
         </div>
       </div>
@@ -204,9 +204,9 @@ export default function HomePage() {
               return (
                 <div key={visit.id} className="flex items-center gap-3 p-3 bg-surface-1 border border-surface-3 rounded-xl">
                   <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                    !visit.checkout_at ? 'bg-blue-400 animate-pulse' :
-                    visit.result === 'positive' ? 'bg-green-400' :
-                    visit.result === 'negative' ? 'bg-red-400' : 'bg-amber-400'
+                    !visit.checkout_at ? 'bg-brand-500 animate-pulse' :
+                    visit.result === 'positive' ? 'bg-green-500' :
+                    visit.result === 'negative' ? 'bg-red-500' : 'bg-amber-500'
                   }`} />
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold truncate">{visit.channels?.name || 'Canal'}</div>
