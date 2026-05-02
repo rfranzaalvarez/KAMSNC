@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../components/AuthProvider';
+import AccountPlan from '../components/AccountPlan';
 import {
   Search, Plus, Building2, Phone, Mail, MapPin,
   ChevronRight, User, X, Check, Loader2
@@ -290,6 +291,11 @@ function ChannelDetail({ channelId, onBack }) {
             <p className="text-xs text-text-secondary leading-relaxed">{channel.notes}</p>
           </div>
         )}
+      </div>
+
+      {/* Plan de cuenta */}
+      <div className="mb-4">
+        <AccountPlan channelId={channelId} channelName={channel.name} />
       </div>
 
       {/* Historial de visitas */}
