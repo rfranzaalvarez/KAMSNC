@@ -7,13 +7,12 @@ import { initOfflineSync } from './lib/offline';
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
 import ChannelsPage from './pages/ChannelsPage';
+import PipelinePage from './pages/PipelinePage';
 import {
-  PipelinePage,
   CalendarPage,
   DashboardPage,
 } from './pages/Placeholders';
 
-// Inicializar sincronización offline
 initOfflineSync();
 
 const queryClient = new QueryClient({
