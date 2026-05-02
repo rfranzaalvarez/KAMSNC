@@ -8,10 +8,7 @@ import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
 import ChannelsPage from './pages/ChannelsPage';
 import PipelinePage from './pages/PipelinePage';
-import {
-  CalendarPage,
-  DashboardPage,
-} from './pages/Placeholders';
+import DashboardPage from './pages/DashboardPage';
 
 initOfflineSync();
 
@@ -60,5 +57,14 @@ export default function App() {
         </BrowserRouter>
       </AuthProvider>
     </QueryClientProvider>
+  );
+}
+
+function CalendarPage() {
+  return (
+    <div>
+      <h1 className="text-xl font-extrabold mb-1">Agenda</h1>
+      <p className="text-sm text-text-secondary">Calendario de visitas — próxima fase</p>
+    </div>
   );
 }
