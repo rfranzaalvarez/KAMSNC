@@ -38,18 +38,18 @@ function ChannelCard({ channel, onDragStart, stage }) {
         e.dataTransfer.effectAllowed = 'move';
         onDragStart(channel.id);
       }}
-      className="bg-[#0c0c16] border rounded-xl p-3 cursor-grab active:cursor-grabbing hover:border-opacity-60 transition-all group"
+      className="bg-[#ffffff] border rounded-xl p-3 cursor-grab active:cursor-grabbing hover:border-opacity-60 transition-all group"
       style={{ borderColor: stage.border }}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex-1 min-w-0">
           <div className="text-sm font-semibold truncate">{channel.name}</div>
-          <div className="text-[10px] text-[#7a7a8a]">{TYPE_LABELS[channel.channel_type] || 'Otro'}</div>
+          <div className="text-[10px] text-[#5a6078]">{TYPE_LABELS[channel.channel_type] || 'Otro'}</div>
         </div>
       </div>
 
       {channel.contact_name && (
-        <div className="text-[11px] text-[#7a7a8a] mb-1.5 truncate">
+        <div className="text-[11px] text-[#5a6078] mb-1.5 truncate">
           👤 {channel.contact_name}
         </div>
       )}
@@ -60,7 +60,7 @@ function ChannelCard({ channel, onDragStart, stage }) {
             <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${
               daysInStage > 14 ? 'bg-red-500/20 text-red-400' :
               daysInStage > 7 ? 'bg-amber-500/20 text-amber-400' :
-              'bg-[#1e1e30] text-[#7a7a8a]'
+              'bg-[#dde1e8] text-[#5a6078]'
             }`}>
               {daysInStage}d en fase
             </span>
@@ -68,7 +68,7 @@ function ChannelCard({ channel, onDragStart, stage }) {
         </div>
         {lastVisitDays !== null && (
           <span className={`text-[9px] font-semibold ${
-            lastVisitDays > 10 ? 'text-red-400' : lastVisitDays > 5 ? 'text-amber-400' : 'text-[#5a5a6a]'
+            lastVisitDays > 10 ? 'text-red-400' : lastVisitDays > 5 ? 'text-amber-400' : 'text-[#8b90a0]'
           }`}>
             Visita: {lastVisitDays}d
           </span>
@@ -104,7 +104,7 @@ function PipelineColumn({ stage, channels, onDrop, onDragStart, dragOver, setDra
         <span className="text-xs font-bold uppercase tracking-wider" style={{ color: stage.color }}>
           {stage.label}
         </span>
-        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#1e1e30] text-[#7a7a8a]">
+        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#dde1e8] text-[#5a6078]">
           {channels.length}
         </span>
       </div>
@@ -126,8 +126,8 @@ function PipelineColumn({ stage, channels, onDrop, onDragStart, dragOver, setDra
         ))}
 
         {channels.length === 0 && !isOver && (
-          <div className="flex items-center justify-center h-20 border border-dashed border-[#1e1e30] rounded-xl">
-            <span className="text-[10px] text-[#3a3a4a]">Sin canales</span>
+          <div className="flex items-center justify-center h-20 border border-dashed border-[#dde1e8] rounded-xl">
+            <span className="text-[10px] text-[#c5cbd6]">Sin canales</span>
           </div>
         )}
 
@@ -152,7 +152,7 @@ function PipelineMobile({ channelsByStage, onMove, loading }) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2 size={24} className="animate-spin text-[#818cf8]" />
+        <Loader2 size={24} className="animate-spin text-[#E87A1E]" />
       </div>
     );
   }
@@ -170,11 +170,11 @@ function PipelineMobile({ channelsByStage, onMove, loading }) {
               className="w-full flex items-center gap-3 p-3 rounded-xl transition-colors"
               style={{
                 backgroundColor: isExpanded ? stage.bg : 'transparent',
-                border: `1px solid ${isExpanded ? stage.border : '#1e1e30'}`,
+                border: `1px solid ${isExpanded ? stage.border : '#dde1e8'}`,
               }}
             >
               <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: stage.color }} />
-              <span className="text-sm font-bold flex-1 text-left" style={{ color: isExpanded ? stage.color : '#e8e6e3' }}>
+              <span className="text-sm font-bold flex-1 text-left" style={{ color: isExpanded ? stage.color : '#1a1a2e' }}>
                 {stage.label}
               </span>
               <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: stage.bg, color: stage.color }}>
@@ -184,7 +184,7 @@ function PipelineMobile({ channelsByStage, onMove, loading }) {
                 size={14}
                 className="transition-transform"
                 style={{
-                  color: '#5a5a6a',
+                  color: '#8b90a0',
                   transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
                 }}
               />
@@ -193,17 +193,17 @@ function PipelineMobile({ channelsByStage, onMove, loading }) {
             {isExpanded && (
               <div className="mt-1 ml-5 space-y-1.5 pb-2">
                 {channels.length === 0 && (
-                  <div className="text-xs text-[#5a5a6a] py-3 text-center">Sin canales en esta fase</div>
+                  <div className="text-xs text-[#8b90a0] py-3 text-center">Sin canales en esta fase</div>
                 )}
                 {channels.map(ch => (
                   <div
                     key={ch.id}
-                    className="flex items-center gap-2 p-2.5 rounded-lg bg-[#0c0c16] border"
+                    className="flex items-center gap-2 p-2.5 rounded-lg bg-[#ffffff] border"
                     style={{ borderColor: stage.border }}
                   >
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-semibold truncate">{ch.name}</div>
-                      <div className="text-[10px] text-[#6a6a7a]">
+                      <div className="text-[10px] text-[#8b90a0]">
                         {TYPE_LABELS[ch.channel_type] || 'Otro'}
                         {ch.contact_name && ` · ${ch.contact_name}`}
                       </div>
@@ -224,7 +224,7 @@ function PipelineMobile({ channelsByStage, onMove, loading }) {
                         ))}
                         <button
                           onClick={() => setMovingChannel(null)}
-                          className="text-[9px] px-1.5 py-1 text-[#6a6a7a]"
+                          className="text-[9px] px-1.5 py-1 text-[#8b90a0]"
                         >
                           <X size={12} />
                         </button>
@@ -232,7 +232,7 @@ function PipelineMobile({ channelsByStage, onMove, loading }) {
                     ) : (
                       <button
                         onClick={() => setMovingChannel(ch.id)}
-                        className="text-[10px] font-semibold px-2 py-1 rounded-md bg-[#1e1e30] text-[#7a7a8a] hover:text-[#e8e6e3] transition-colors"
+                        className="text-[10px] font-semibold px-2 py-1 rounded-md bg-[#dde1e8] text-[#5a6078] hover:text-[#1a1a2e] transition-colors"
                       >
                         Mover →
                       </button>
@@ -362,14 +362,14 @@ export default function PipelinePage() {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-xl font-extrabold tracking-tight">Pipeline</h1>
-          <p className="text-xs text-[#7a7a8a]">
+          <p className="text-xs text-[#5a6078]">
             {channels.length} canales · {totalInPipeline} en proceso
           </p>
         </div>
       </div>
 
       {/* Resumen visual de funnel */}
-      <div className="flex gap-1 mb-4 h-2 rounded-full overflow-hidden bg-[#1e1e30]">
+      <div className="flex gap-1 mb-4 h-2 rounded-full overflow-hidden bg-[#dde1e8]">
         {STAGES.map(stage => {
           const count = channelsByStage[stage.key]?.length || 0;
           const pct = channels.length > 0 ? (count / channels.length) * 100 : 0;
@@ -387,7 +387,7 @@ export default function PipelinePage() {
       {/* Vista según dispositivo */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 size={24} className="animate-spin text-[#818cf8]" />
+          <Loader2 size={24} className="animate-spin text-[#E87A1E]" />
         </div>
       ) : isMobile ? (
         <PipelineMobile
