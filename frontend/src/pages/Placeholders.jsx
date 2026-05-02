@@ -1,17 +1,8 @@
-export function PipelinePage() {
-  return (
-    <div>
-      <h1 className="text-xl font-extrabold mb-1">Pipeline</h1>
-      <p className="text-sm text-text-secondary">Pipeline de captación — se construye en la Fase 2</p>
-    </div>
-  );
-}
-
 export function CalendarPage() {
   return (
     <div>
       <h1 className="text-xl font-extrabold mb-1">Agenda</h1>
-      <p className="text-sm text-text-secondary">Calendario de visitas — se construye en la Fase 2</p>
+      <p className="text-sm text-text-secondary">Calendario de visitas — próxima fase</p>
     </div>
   );
 }
@@ -20,7 +11,7 @@ export function DashboardPage() {
   return (
     <div>
       <h1 className="text-xl font-extrabold mb-1">Dashboard Manager</h1>
-      <p className="text-sm text-text-secondary">Dashboard de mando — se construye en el paso 07</p>
+      <p className="text-sm text-text-secondary">Dashboard de mando — próxima fase</p>
     </div>
   );
 }
