@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../components/AuthProvider';
 import { CheckInButton } from '../components/CheckInButton';
@@ -20,9 +20,9 @@ const PRIORITY_COLORS = {
 };
 
 const RESULT_COLORS = {
-  positive: 'text-green-400 bg-green-500/20',
-  neutral: 'text-amber-400 bg-amber-500/20',
-  negative: 'text-red-400 bg-red-500/20',
+  positive: 'text-green-600 bg-green-50',
+  neutral: 'text-amber-600 bg-amber-50',
+  negative: 'text-red-600 bg-red-50',
 };
 
 export default function HomePage() {
@@ -31,13 +31,28 @@ export default function HomePage() {
   const [stats, setStats] = useState({ today: 0, week: 0, weekTarget: 12, pipeline: 0 });
   const [alerts, setAlerts] = useState([]);
   const [todayVisits, setTodayVisits] = useState([]);
+  const loadedRef = useRef(false);
 
   useEffect(() => {
-    if (user) loadData();
-  }, [user]);
+    if (user?.id) {
+      loadData();
+    }
+  }, [user?.id]);
 
   async function loadData() {
+    // Evitar cargas duplicadas
+    if (loadedRef.current) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
+
+    // Timeout de seguridad: si en 8 segundos no ha cargado, mostrar la página igualmente
+    const timeout = setTimeout(() => {
+      setLoading(false);
+    }, 8000);
+
     try {
       const now = new Date();
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
@@ -49,45 +64,64 @@ export default function HomePage() {
         return d.toISOString();
       })();
 
-      // Queries paralelas
-      const [visitsToday, visitsWeek, pipelineCount, alertsData, recentVisits] = await Promise.all([
+      const userId = user.id;
+
+      // Ejecutar queries individualmente para que un fallo no bloquee todo
+      const [visitsToday, visitsWeek, pipelineCount, alertsData, recentVisits] = await Promise.allSettled([
         supabase.from('visits').select('id', { count: 'exact', head: true })
-          .eq('kam_id', user.id).gte('checkin_at', todayStart),
+          .eq('kam_id', userId).gte('checkin_at', todayStart),
         supabase.from('visits').select('id', { count: 'exact', head: true })
-          .eq('kam_id', user.id).gte('checkin_at', mondayStart),
+          .eq('kam_id', userId).gte('checkin_at', mondayStart),
         supabase.from('channels').select('id', { count: 'exact', head: true })
-          .eq('assigned_to', user.id)
+          .eq('assigned_to', userId)
           .in('pipeline_stage', ['first_contact', 'proposal', 'negotiation', 'onboarding']),
         supabase.from('alerts').select('*, channels(name)')
-          .eq('user_id', user.id).eq('is_dismissed', false)
-          .order('priority').order('due_date').limit(10),
+          .eq('user_id', userId).eq('is_dismissed', false)
+          .order('created_at', { ascending: false }).limit(10),
         supabase.from('visits').select('*, channels(name)')
-          .eq('kam_id', user.id).gte('checkin_at', todayStart)
+          .eq('kam_id', userId).gte('checkin_at', todayStart)
           .order('checkin_at', { ascending: false }),
       ]);
 
+      // Extraer resultados de forma segura (si una query falla, usamos valor por defecto)
+      const getCount = (result) => result.status === 'fulfilled' ? (result.value.count || 0) : 0;
+      const getData = (result) => result.status === 'fulfilled' ? (result.value.data || []) : [];
+
       setStats({
-        today: visitsToday.count || 0,
-        week: visitsWeek.count || 0,
+        today: getCount(visitsToday),
+        week: getCount(visitsWeek),
         weekTarget: 12,
-        pipeline: pipelineCount.count || 0,
+        pipeline: getCount(pipelineCount),
       });
 
-      setAlerts(alertsData.data || []);
-      setTodayVisits(recentVisits.data || []);
+      setAlerts(getData(alertsData));
+      setTodayVisits(getData(recentVisits));
+      loadedRef.current = true;
     } catch (err) {
       console.error('Error cargando datos:', err);
     } finally {
+      clearTimeout(timeout);
       setLoading(false);
     }
   }
+
+  // Recargar cuando la ventana vuelve a estar visible (por si vuelves del navegador)
+  useEffect(() => {
+    function handleVisibility() {
+      if (document.visibilityState === 'visible' && user?.id) {
+        loadedRef.current = false;
+        loadData();
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [user?.id]);
 
   async function dismissAlert(alertId) {
     await supabase.from('alerts').update({ is_dismissed: true }).eq('id', alertId);
     setAlerts(prev => prev.filter(a => a.id !== alertId));
   }
 
-  // Greeting basado en hora
   const hour = new Date().getHours();
   const greeting = hour < 13 ? 'Buenos días' : hour < 20 ? 'Buenas tardes' : 'Buenas noches';
   const firstName = profile?.full_name?.split(' ')[0] || '';
@@ -138,7 +172,7 @@ export default function HomePage() {
               >
                 <span className="text-sm mt-0.5 flex-shrink-0">{icon}</span>
                 <div className="flex-1 min-w-0">
-                  <div className="text-xs font-semibold leading-tight">{alert.title}</div>
+                  <div className="text-xs font-semibold leading-tight text-text-primary">{alert.title}</div>
                   {alert.detail && (
                     <div className="text-[11px] text-text-secondary leading-tight mt-0.5">{alert.detail}</div>
                   )}
@@ -221,7 +255,7 @@ export default function HomePage() {
                        visit.result === 'neutral' ? '~ Neutral' : '✗ Negativa'}
                     </span>
                   ) : !visit.checkout_at ? (
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-blue-500/20 text-blue-400">
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-600">
                       En curso
                     </span>
                   ) : null}
