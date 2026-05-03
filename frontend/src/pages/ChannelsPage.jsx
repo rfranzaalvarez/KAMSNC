@@ -5,7 +5,7 @@ import { useAuthContext } from '../components/AuthProvider';
 import AccountPlan from '../components/AccountPlan';
 import {
   Search, Plus, Building2, Phone, Mail, MapPin,
-  ChevronRight, User, X, Check, Loader2, Edit3
+  ChevronRight, User, X, Check, Loader2, Edit3, Upload
 } from 'lucide-react';
 
 const STATUS_CONFIG = {
@@ -54,13 +54,22 @@ function ChannelList({ channels, loading, onSelect, filter, setFilter, search, s
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-extrabold tracking-tight">Canales</h1>
-        <button
-          onClick={() => onSelect('new')}
-          className="flex items-center gap-1.5 px-3 py-2 bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold rounded-lg transition-colors"
-        >
-          <Plus size={14} />
-          Nuevo
-        </button>
+        <div className="flex items-center gap-2">
+          <a
+            href="/import"
+            className="flex items-center gap-1.5 px-3 py-2 bg-surface-2 hover:bg-surface-3 text-text-secondary text-xs font-semibold rounded-lg transition-colors"
+          >
+            <Upload size={13} />
+            Importar
+          </a>
+          <button
+            onClick={() => onSelect('new')}
+            className="flex items-center gap-1.5 px-3 py-2 bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold rounded-lg transition-colors"
+          >
+            <Plus size={14} />
+            Nuevo
+          </button>
+        </div>
       </div>
 
       {/* Buscador */}
