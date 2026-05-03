@@ -10,6 +10,7 @@ import ChannelsPage from './pages/ChannelsPage';
 import PipelinePage from './pages/PipelinePage';
 import CalendarPage from './pages/CalendarPage';
 import DashboardPage from './pages/DashboardPage';
+import GamificationPage from './pages/GamificationPage';
 
 initOfflineSync();
 
@@ -42,6 +43,7 @@ export default function App() {
               <Route path="/channels" element={<ChannelsPage />} />
               <Route path="/pipeline" element={<PipelinePage />} />
               <Route path="/calendar" element={<CalendarPage />} />
+              <Route path="/ranking" element={<GamificationPage />} />
             </Route>
             <Route
               path="/dashboard"
