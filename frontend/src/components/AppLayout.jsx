@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { Home, Building2, BarChart3, CalendarDays } from 'lucide-react';
+import { Home, Building2, BarChart3, CalendarDays, Trophy } from 'lucide-react';
 import { useAuthContext } from './AuthProvider';
 import { useState, useEffect } from 'react';
 import { offlineQueue } from '../lib/offline';
@@ -10,6 +10,7 @@ const navItems = [
   { to: '/home', icon: Home, label: 'Mi día' },
   { to: '/channels', icon: Building2, label: 'Canales' },
   { to: '/pipeline', icon: BarChart3, label: 'Pipeline' },
+  { to: '/ranking', icon: Trophy, label: 'Ranking' },
   { to: '/calendar', icon: CalendarDays, label: 'Agenda' },
 ];
 
