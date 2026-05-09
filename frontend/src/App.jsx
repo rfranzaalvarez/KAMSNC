@@ -13,6 +13,7 @@ import DashboardPage from './pages/DashboardPage';
 import GamificationPage from './pages/GamificationPage';
 import ImportPage from './pages/ImportPage';
 import AssistantPage from './pages/AssistantPage';
+import ExportPage from './pages/ExportPage';
 
 initOfflineSync();
 
@@ -48,6 +49,7 @@ export default function App() {
               <Route path="/calendar" element={<CalendarPage />} />
               <Route path="/import" element={<ImportPage />} />
               <Route path="/assistant" element={<AssistantPage />} />
+              <Route path="/export" element={<ExportPage />} />
             </Route>
             <Route
               path="/dashboard"
