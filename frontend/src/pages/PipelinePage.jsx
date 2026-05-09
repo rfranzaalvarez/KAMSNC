@@ -252,7 +252,7 @@ function PipelineMobile({ channelsByStage, onMove, loading }) {
 export default function PipelinePage() {
   const { user } = useAuthContext();
   const [channels, setChannels] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [dragOver, setDragOver] = useState(null);
   const [draggingId, setDraggingId] = useState(null);
   const [toast, setToast] = useState(null);
@@ -267,13 +267,7 @@ export default function PipelinePage() {
   }, []);
 
   useEffect(() => {
-    if (user) {
-      loadChannels();
-    } else {
-      // Auth aún cargando o sin sesión: esperar máx 3s y salir del spinner
-      const t = setTimeout(() => setLoading(false), 3000);
-      return () => clearTimeout(t);
-    }
+    if (user) loadChannels();
   }, [user]);
 
   useEffect(() => {
