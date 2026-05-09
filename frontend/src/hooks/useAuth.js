@@ -167,9 +167,16 @@ export function useAuth() {
         const currentUser = session?.user ?? null;
 
         if (currentUser) {
-          userRef.current = currentUser;
-          setUser(currentUser);
-          await loadProfile(currentUser.id);
+          // Solo actualizar si el usuario cambió — evita re-renders y re-fetches
+          // innecesarios cuando TOKEN_REFRESHED dispara con el mismo usuario
+          if (userRef.current?.id !== currentUser.id) {
+            userRef.current = currentUser;
+            setUser(currentUser);
+            await loadProfile(currentUser.id);
+          } else {
+            // Mismo usuario, solo actualizar ref sin re-render
+            userRef.current = currentUser;
+          }
         } else if (event === 'TOKEN_REFRESHED' && !currentUser) {
           // Token refresh falló por el bug del lock — intentar recuperar
           const recovered = await recoverSession();
