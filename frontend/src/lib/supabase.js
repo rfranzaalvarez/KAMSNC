@@ -14,11 +14,36 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    // Persistir sesión en localStorage
     persistSession: true,
-    // Auto-refresh del token
     autoRefreshToken: true,
-    // Detectar sesión en otras pestañas
     detectSessionInUrl: true,
+    // Desactivar el sistema de locks que causa "orphaned lock" 
+    // y bloquea el refresco del token al volver a la pestaña
+    lock: null,
+    storageKey: 'kamapp-auth',
+    // Usar localStorage directamente sin locks
+    storage: {
+      getItem: (key) => {
+        try {
+          return localStorage.getItem(key);
+        } catch {
+          return null;
+        }
+      },
+      setItem: (key, value) => {
+        try {
+          localStorage.setItem(key, value);
+        } catch {
+          // Ignorar errores de storage
+        }
+      },
+      removeItem: (key) => {
+        try {
+          localStorage.removeItem(key);
+        } catch {
+          // Ignorar errores de storage
+        }
+      },
+    },
   },
 });
