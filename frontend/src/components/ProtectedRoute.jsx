@@ -2,20 +2,19 @@ import { Navigate } from 'react-router-dom';
 import { useAuthContext } from './AuthProvider';
 
 /**
- * Wrapper que protege rutas autenticadas.
- * Redirige a /login si no hay sesión.
- * Muestra spinner mientras carga.
- *
- * Uso en Router:
- *   <Route path="/home" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
- *
- * Para rutas solo de managers:
- *   <Route path="/dashboard" element={<ProtectedRoute requireManager><DashboardPage /></ProtectedRoute>} />
+ * Protección de rutas robusta.
+ * - Usa profile cacheado para render instantáneo (sin spinner al navegar)
+ * - Solo muestra spinner la primera vez que cargas la app
+ * - Timeout implícito via useAuth (máximo 3 segundos)
  */
 export function ProtectedRoute({ children, requireManager = false }) {
-  const { isAuthenticated, isManager, loading } = useAuthContext();
+  const { isAuthenticated, isManager, loading, profile } = useAuthContext();
 
-  if (loading) {
+  // Si hay profile cacheado, no mostrar spinner (la sesión se verificará en background)
+  const hasCachedProfile = !!localStorage.getItem('kamapp_profile');
+
+  // Solo mostrar loading si NO hay cache (primera carga o sesión expirada)
+  if (loading && !hasCachedProfile) {
     return (
       <div className="flex items-center justify-center h-screen bg-surface-0">
         <div className="flex flex-col items-center gap-3">
@@ -26,7 +25,8 @@ export function ProtectedRoute({ children, requireManager = false }) {
     );
   }
 
-  if (!isAuthenticated) {
+  // Si no hay sesión ni cache, ir a login
+  if (!isAuthenticated && !hasCachedProfile) {
     return <Navigate to="/login" replace />;
   }
 
