@@ -231,6 +231,9 @@ export default function CalendarPage() {
     if (user) {
       loadWeekData();
       loadChannels();
+    } else {
+      const t = setTimeout(() => setLoading(false), 3000);
+      return () => clearTimeout(t);
     }
   }, [user, currentWeekStart]);
 
