@@ -75,7 +75,7 @@ function KamRow({ kam, onViewDetail }) {
 function KamDetail({ kam, onBack }) {
   const [visits, setVisits] = useState([]);
   const [channels, setChannels] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     loadDetail();
@@ -197,7 +197,7 @@ function KamDetail({ kam, onBack }) {
 // ============ DASHBOARD PRINCIPAL ============
 export default function DashboardPage() {
   const { user, profile } = useAuthContext();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [teamKams, setTeamKams] = useState([]);
   const [teamStats, setTeamStats] = useState({ visitsWeek: 0, visitsTarget: 0, newChannels: 0, pipelineActive: 0, conversionRate: 0 });
   const [teamAlerts, setTeamAlerts] = useState([]);
@@ -205,12 +205,7 @@ export default function DashboardPage() {
   const [selectedKam, setSelectedKam] = useState(null);
 
   useEffect(() => {
-    if (user) {
-      loadDashboard();
-    } else {
-      const t = setTimeout(() => setLoading(false), 3000);
-      return () => clearTimeout(t);
-    }
+    if (user) loadDashboard();
   }, [user]);
 
   async function loadDashboard() {
