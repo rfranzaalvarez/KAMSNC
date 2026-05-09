@@ -114,16 +114,11 @@ export default function GamificationPage() {
   const [period, setPeriod] = useState('weekly');
   const [leaderboard, setLeaderboard] = useState([]);
   const [badges, setBadges] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [expandedEntry, setExpandedEntry] = useState(null);
 
   useEffect(() => {
-    if (user) {
-      loadData();
-    } else {
-      const t = setTimeout(() => setLoading(false), 3000);
-      return () => clearTimeout(t);
-    }
+    if (user) loadData();
   }, [user, period]);
 
   async function loadData() {
