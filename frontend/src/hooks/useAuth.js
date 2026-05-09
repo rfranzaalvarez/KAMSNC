@@ -1,20 +1,27 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 
 /**
- * Hook de autenticación.
- * Gestiona sesión, carga el perfil del usuario, y expone funciones de login/logout.
- *
- * Uso:
- *   const { user, profile, loading, error, signIn, signOut } = useAuth();
+ * Hook de autenticación robusto.
+ * - Cachea el profile en localStorage para evitar loading al navegar
+ * - Timeout de seguridad para nunca quedarse en loading infinito
+ * - Maneja reconexiones y cambios de pestaña
  */
 export function useAuth() {
+  // Intentar cargar profile cacheado para render instantáneo
+  const cachedProfile = (() => {
+    try {
+      const stored = localStorage.getItem('kamapp_profile');
+      return stored ? JSON.parse(stored) : null;
+    } catch { return null; }
+  })();
+
   const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState(null);
+  const [profile, setProfile] = useState(cachedProfile);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const initDone = useRef(false);
 
-  // Cargar perfil del usuario desde la tabla profiles
   const loadProfile = useCallback(async (userId) => {
     try {
       const { data, error: profileError } = await supabase
@@ -25,15 +32,28 @@ export function useAuth() {
 
       if (profileError) throw profileError;
       setProfile(data);
+      // Cachear en localStorage
+      localStorage.setItem('kamapp_profile', JSON.stringify(data));
     } catch (err) {
       console.error('Error cargando perfil:', err);
-      setProfile(null);
+      // Si falla pero tenemos cache, usar cache
+      if (!cachedProfile) setProfile(null);
     }
   }, []);
 
-  // Inicializar: comprobar si hay sesión existente
   useEffect(() => {
+    // Timeout de seguridad: máximo 3 segundos en loading
+    const timeout = setTimeout(() => {
+      if (loading) {
+        console.warn('Auth timeout — forzando fin de loading');
+        setLoading(false);
+      }
+    }, 3000);
+
     const init = async () => {
+      if (initDone.current) return;
+      initDone.current = true;
+
       try {
         const { data: { session } } = await supabase.auth.getSession();
         const currentUser = session?.user ?? null;
@@ -41,6 +61,9 @@ export function useAuth() {
 
         if (currentUser) {
           await loadProfile(currentUser.id);
+        } else {
+          setProfile(null);
+          localStorage.removeItem('kamapp_profile');
         }
       } catch (err) {
         console.error('Error inicializando auth:', err);
@@ -51,7 +74,6 @@ export function useAuth() {
 
     init();
 
-    // Escuchar cambios de sesión (login, logout, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         const currentUser = session?.user ?? null;
@@ -61,18 +83,25 @@ export function useAuth() {
           await loadProfile(currentUser.id);
         } else {
           setProfile(null);
+          localStorage.removeItem('kamapp_profile');
         }
+
+        // Asegurar que loading se apaga
+        setLoading(false);
 
         if (event === 'SIGNED_OUT') {
           setError(null);
+          localStorage.removeItem('kamapp_profile');
         }
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(timeout);
+      subscription.unsubscribe();
+    };
   }, [loadProfile]);
 
-  // Login con email y password
   const signIn = useCallback(async (email, password) => {
     setError(null);
     setLoading(true);
@@ -84,7 +113,6 @@ export function useAuth() {
       });
 
       if (signInError) {
-        // Traducir errores comunes al español
         const messages = {
           'Invalid login credentials': 'Email o contraseña incorrectos',
           'Email not confirmed': 'Debes confirmar tu email antes de acceder',
@@ -102,18 +130,17 @@ export function useAuth() {
     }
   }, []);
 
-  // Logout
   const signOut = useCallback(async () => {
-    setLoading(true);
     try {
       await supabase.auth.signOut();
       setUser(null);
       setProfile(null);
+      localStorage.removeItem('kamapp_profile');
     } catch (err) {
       console.error('Error en logout:', err);
-    } finally {
-      setLoading(false);
     }
+    // Siempre terminar loading
+    setLoading(false);
   }, []);
 
   return {
@@ -123,10 +150,9 @@ export function useAuth() {
     error,
     signIn,
     signOut,
-    // Helpers
-    isAuthenticated: !!user,
-    isKam: profile?.role === 'kam',
-    isManager: ['coordinator', 'manager', 'director'].includes(profile?.role),
-    isAdmin: profile?.role === 'admin',
+    isAuthenticated: !!user || !!cachedProfile,
+    isKam: (profile || cachedProfile)?.role === 'kam',
+    isManager: ['coordinator', 'manager', 'director'].includes((profile || cachedProfile)?.role),
+    isAdmin: (profile || cachedProfile)?.role === 'admin',
   };
 }
