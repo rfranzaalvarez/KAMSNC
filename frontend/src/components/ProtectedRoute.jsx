@@ -1,20 +1,29 @@
 import { Navigate } from 'react-router-dom';
 import { useAuthContext } from './AuthProvider';
+import { useEffect, useState } from 'react';
 
 /**
  * Protección de rutas robusta.
  * - Usa profile cacheado para render instantáneo (sin spinner al navegar)
  * - Solo muestra spinner la primera vez que cargas la app
- * - Timeout implícito via useAuth (máximo 3 segundos)
+ * - Timeout de seguridad de 3s para nunca quedarse bloqueado
  */
 export function ProtectedRoute({ children, requireManager = false }) {
   const { isAuthenticated, isManager, loading, profile } = useAuthContext();
+  const [timedOut, setTimedOut] = useState(false);
 
-  // Si hay profile cacheado, no mostrar spinner (la sesión se verificará en background)
-  const hasCachedProfile = !!localStorage.getItem('kamapp_profile');
+  // BUGFIX: la key correcta es 'kamapp_profile_cache', no 'kamapp_profile'
+  const hasCachedProfile = !!localStorage.getItem('kamapp_profile_cache');
 
-  // Solo mostrar loading si NO hay cache (primera carga o sesión expirada)
-  if (loading && !hasCachedProfile) {
+  // Timeout de seguridad: si loading no resuelve en 3s, forzar salida del spinner
+  useEffect(() => {
+    if (!loading) return;
+    const t = setTimeout(() => setTimedOut(true), 3000);
+    return () => clearTimeout(t);
+  }, [loading]);
+
+  // Mostrar spinner solo si: está cargando, no hay cache, y no ha pasado el timeout
+  if (loading && !hasCachedProfile && !timedOut) {
     return (
       <div className="flex items-center justify-center h-screen bg-surface-0">
         <div className="flex flex-col items-center gap-3">
@@ -25,7 +34,7 @@ export function ProtectedRoute({ children, requireManager = false }) {
     );
   }
 
-  // Si no hay sesión ni cache, ir a login
+  // Si no hay sesión ni cache tras resolver, ir a login
   if (!isAuthenticated && !hasCachedProfile) {
     return <Navigate to="/login" replace />;
   }
