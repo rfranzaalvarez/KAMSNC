@@ -212,7 +212,7 @@ function PlannedVisitCard({ visit, onDelete }) {
 // ============ PÁGINA PRINCIPAL DEL CALENDARIO ============
 export default function CalendarPage() {
   const { user } = useAuthContext();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [currentWeekStart, setCurrentWeekStart] = useState(getMonday(new Date()));
   const [selectedDay, setSelectedDay] = useState(new Date());
   const [plannedVisits, setPlannedVisits] = useState([]);
@@ -231,9 +231,6 @@ export default function CalendarPage() {
     if (user) {
       loadWeekData();
       loadChannels();
-    } else {
-      const t = setTimeout(() => setLoading(false), 3000);
-      return () => clearTimeout(t);
     }
   }, [user, currentWeekStart]);
 
