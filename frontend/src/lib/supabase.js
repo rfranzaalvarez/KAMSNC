@@ -4,9 +4,7 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error(
-    'Faltan variables de entorno VITE_SUPABASE_URL y/o VITE_SUPABASE_ANON_KEY.'
-  );
+  throw new Error('Faltan VITE_SUPABASE_URL y/o VITE_SUPABASE_ANON_KEY');
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -14,8 +12,5 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    // Cambiar storageKey para evitar locks corruptos del key anterior
-    storageKey: 'kamapp-auth-v2',
-    flowType: 'implicit',
   },
 });
