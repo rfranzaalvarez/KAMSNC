@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../components/AuthProvider';
+import { useSessionReady } from '../hooks/useSessionReady';
 import AccountPlan from '../components/AccountPlan';
+import ChannelScore, { ScoreBadge } from '../components/ChannelScore';
 import {
   Search, Plus, Building2, Phone, Mail, MapPin,
   ChevronRight, User, X, Check, Loader2, Edit3, Upload
@@ -159,6 +161,7 @@ function ChannelList({ channels, loading, onSelect, filter, setFilter, search, s
 
             {/* Meta */}
             <div className="flex flex-col items-end gap-1 flex-shrink-0">
+              <ScoreBadge score={channel.score} />
               {daysSinceVisit !== null ? (
                 <span className={`text-[10px] font-semibold ${
                   daysSinceVisit > 10 ? 'text-red-400' : daysSinceVisit > 5 ? 'text-amber-400' : 'text-text-secondary'
@@ -168,7 +171,6 @@ function ChannelList({ channels, loading, onSelect, filter, setFilter, search, s
               ) : (
                 <span className="text-[10px] text-text-muted">Sin visitas</span>
               )}
-              <ChevronRight size={14} className="text-text-muted" />
             </div>
           </button>
         );
@@ -460,6 +462,11 @@ function ChannelDetail({ channelId, onBack }) {
         )}
       </div>
 
+      {/* Scoring */}
+      <div className="mb-4">
+        <ChannelScore channelId={channelId} />
+      </div>
+
       {/* Plan de cuenta */}
       <div className="mb-4">
         <AccountPlan channelId={channelId} channelName={channel.name} />
@@ -706,6 +713,7 @@ function NewChannelForm({ onBack, onSaved }) {
 // ============ PÁGINA PRINCIPAL DE CANALES ============
 export default function ChannelsPage() {
   const { user } = useAuthContext();
+  const { ready, refreshKey } = useSessionReady();
   const [channels, setChannels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('list'); // 'list' | 'detail' | 'new'
@@ -714,8 +722,8 @@ export default function ChannelsPage() {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    if (user) loadChannels();
-  }, [user]);
+    if (ready && user) loadChannels();
+  }, [ready, refreshKey, user]);
 
   async function loadChannels() {
     setLoading(true);
