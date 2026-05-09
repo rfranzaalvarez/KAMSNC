@@ -12,5 +12,12 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
+    // BUGFIX: desactivar el sistema de locks entre pestañas.
+    // El lock de Supabase usa BroadcastChannel/localStorage para coordinar
+    // el refresco del token entre pestañas. Cuando el navegador suspende
+    // una pestaña, el lock queda "orphaned" y getSession() se bloquea
+    // indefinidamente al volver. Con flowType: 'implicit' y lock desactivado
+    // cada pestaña gestiona su propio token sin coordinación.
+    lock: (_name, _acquireTimeout, fn) => fn(),
   },
 });
