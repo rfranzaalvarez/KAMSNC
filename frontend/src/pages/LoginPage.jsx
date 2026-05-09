@@ -46,9 +46,9 @@ function OfficeIllustration() {
       )}
 
       {/* Logo Naturgy grande encima de la puerta */}
-      <rect x="240" y="530" width="320" height="65" rx="6" fill="white" opacity="0.94"/>
-      <rect x="240" y="530" width="320" height="65" rx="6" fill="none" stroke="#ccc" strokeWidth="1" opacity="0.5"/>
-      <image href={NATURGY_LOGO} x="280" y="538" width="240" height="50" />
+      <rect x="220" y="520" width="360" height="75" rx="6" fill="white" opacity="0.95"/>
+      <rect x="220" y="520" width="360" height="75" rx="6" fill="none" stroke="#ccc" strokeWidth="1" opacity="0.5"/>
+      <image href={NATURGY_LOGO} x="260" y="530" width="280" height="55" preserveAspectRatio="xMidYMid meet" />
 
       {/* Suelo */}
       <rect x="0" y="700" width="800" height="200" fill="url(#floorGrad)"/>
