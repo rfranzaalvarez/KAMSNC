@@ -205,7 +205,12 @@ export default function DashboardPage() {
   const [selectedKam, setSelectedKam] = useState(null);
 
   useEffect(() => {
-    if (user) loadDashboard();
+    if (user) {
+      loadDashboard();
+    } else {
+      const t = setTimeout(() => setLoading(false), 3000);
+      return () => clearTimeout(t);
+    }
   }, [user]);
 
   async function loadDashboard() {
