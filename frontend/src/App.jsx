@@ -12,6 +12,7 @@ import CalendarPage from './pages/CalendarPage';
 import DashboardPage from './pages/DashboardPage';
 import GamificationPage from './pages/GamificationPage';
 import ImportPage from './pages/ImportPage';
+import AssistantPage from './pages/AssistantPage';
 
 initOfflineSync();
 
@@ -46,6 +47,7 @@ export default function App() {
               <Route path="/ranking" element={<GamificationPage />} />
               <Route path="/calendar" element={<CalendarPage />} />
               <Route path="/import" element={<ImportPage />} />
+              <Route path="/assistant" element={<AssistantPage />} />
             </Route>
             <Route
               path="/dashboard"
