@@ -45,9 +45,9 @@ function OfficeIllustration() {
         ))
       )}
 
-      {/* Panel blanco para el logo (el logo se superpone con HTML) */}
-      <rect x="220" y="520" width="360" height="75" rx="6" fill="white" opacity="0.95"/>
-      <rect x="220" y="520" width="360" height="75" rx="6" fill="none" stroke="#ccc" strokeWidth="1" opacity="0.5"/>
+      {/* Cartel del edificio con texto naturgy */}
+      <rect x="250" y="530" width="300" height="60" rx="6" fill="white" opacity="0.95"/>
+      <text x="400" y="568" textAnchor="middle" fontFamily="Arial, sans-serif" fontSize="30" fontWeight="800" fill="#003E6B" letterSpacing="-0.5">naturgy</text>
 
       {/* Suelo */}
       <rect x="0" y="700" width="800" height="200" fill="url(#floorGrad)"/>
@@ -120,11 +120,14 @@ export default function LoginPage() {
       {/* Panel izquierdo — ilustración oficina (solo desktop) */}
       <div className="hidden lg:block lg:w-1/2 relative overflow-hidden">
         <OfficeIllustration />
-        {/* Logo Naturgy en el cartel del edificio */}
-        <img src={NATURGY_LOGO} alt="Naturgy"
-          className="absolute z-10"
-          style={{ left: '50%', top: '60%', transform: 'translate(-50%, -50%)', height: '5%', maxWidth: '30%' }}
-          onError={(e) => { e.target.style.display = 'none'; }} />
+        {/* Logo Naturgy grande superpuesto centrado en la ilustración */}
+        <div className="absolute z-10 flex items-center justify-center"
+          style={{ left: '10%', right: '10%', top: '35%', transform: 'translateY(-50%)' }}>
+          <img src={NATURGY_LOGO} alt="Naturgy"
+            className="drop-shadow-lg"
+            style={{ height: 60, opacity: 0.9 }}
+            onError={(e) => { e.target.style.display = 'none'; }} />
+        </div>
         <div className="absolute top-5 left-5 z-10">
           <img src={NATURGY_LOGO} alt="Naturgy"
             className="h-8 brightness-0 invert opacity-90 drop-shadow-md"
