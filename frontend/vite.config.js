@@ -34,25 +34,20 @@ export default defineConfig({
       workbox: {
         // Precache del shell de la app
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        // Cache de API calls para offline
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/v1\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'supabase-api',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60, // 1 hora
-              },
-            },
+            // BUGFIX: NetworkOnly para Supabase — nunca cachear llamadas de API.
+            // NetworkFirst causaba que al volver de background el SW sirviera
+            // respuestas cacheadas con sesión antigua, dejando el spinner infinito.
+            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
+            handler: 'NetworkOnly',
           },
         ],
       },
     }),
   ],
   server: {
-    host: true, // Para testear desde el móvil en red local
+    host: true,
     port: 5173,
   },
 });
