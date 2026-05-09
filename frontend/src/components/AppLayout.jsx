@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { Home, Building2, BarChart3, CalendarDays, Trophy } from 'lucide-react';
+import { Home, Building2, BarChart3, Trophy, Sparkles } from 'lucide-react';
 import { useAuthContext } from './AuthProvider';
 import { useState, useEffect } from 'react';
 import { offlineQueue } from '../lib/offline';
@@ -9,9 +9,9 @@ const NATURGY_LOGO = 'https://www.naturgy.es/content/dam/naturgy/espana/global/l
 const navItems = [
   { to: '/home', icon: Home, label: 'Mi día' },
   { to: '/channels', icon: Building2, label: 'Canales' },
-  { to: '/pipeline', icon: BarChart3, label: 'Pipeline' },
+  { to: '/assistant', icon: Sparkles, label: 'Asistente' },
   { to: '/ranking', icon: Trophy, label: 'Ranking' },
-  { to: '/calendar', icon: CalendarDays, label: 'Agenda' },
+  { to: '/pipeline', icon: BarChart3, label: 'Pipeline' },
 ];
 
 export function AppLayout() {
@@ -99,6 +99,20 @@ export function AppLayout() {
                     📊 Dashboard Manager
                   </NavLink>
                 )}
+                <NavLink
+                  to="/calendar"
+                  onClick={() => setShowMenu(false)}
+                  className="block px-4 py-2.5 text-sm text-text-secondary hover:bg-surface-1 hover:text-text-primary"
+                >
+                  📅 Agenda
+                </NavLink>
+                <NavLink
+                  to="/import"
+                  onClick={() => setShowMenu(false)}
+                  className="block px-4 py-2.5 text-sm text-text-secondary hover:bg-surface-1 hover:text-text-primary"
+                >
+                  📥 Importar canales
+                </NavLink>
                 <button
                   onClick={() => { setShowMenu(false); signOut(); }}
                   className="w-full text-left px-4 py-2.5 text-sm text-red-500 hover:bg-surface-1"
