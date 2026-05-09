@@ -2,26 +2,63 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 
 /**
- * Hook de autenticación a prueba de balas.
- * 
- * Problema resuelto: Supabase Auth usa un sistema de "locks" para coordinar
- * el refresco del token entre pestañas. Cuando el navegador suspende una pestaña
- * (al cambiar a otra app, minimizar, etc.), el lock puede quedar "orphaned" y
- * getSession() se bloquea indefinidamente. Esto causa el spinner infinito.
- * 
- * Solución: 
- * 1. Race entre getSession() y un timeout de 2 segundos
- * 2. Si getSession falla, intentar leer el token directamente de localStorage
- * 3. Si hay token válido en localStorage, usarlo sin esperar al lock
- * 4. Siempre resolver loading, nunca quedarse bloqueado
+ * Hook de autenticación resistente al bug de Supabase Auth lock.
+ *
+ * PROBLEMA RAÍZ:
+ * Supabase Auth usa un "storage lock" para coordinar el refresco del token
+ * entre pestañas. Cuando el navegador suspende una pestaña (minimizar,
+ * cambiar de app, bloquear pantalla), el lock queda "orphaned". Al volver:
+ *
+ * 1. getSession() se bloquea indefinidamente (el lock nunca se libera)
+ * 2. onAuthStateChange dispara TOKEN_REFRESHED o SIGNED_OUT con session=null
+ * 3. El listener borra user y profile → todas las páginas ven user=null
+ * 4. Los useEffect de las páginas no recargan (user no cambia de null a null)
+ * 5. Resultado: spinner infinito en todas las páginas
+ *
+ * SOLUCIÓN:
+ * - Nunca confiar ciegamente en session=null del listener: verificar si hay
+ *   token válido en localStorage antes de borrar el usuario
+ * - Usar visibilitychange para recuperar la sesión al volver al foco
+ * - Mantener user/profile en ref además de state para acceso síncrono
+ * - Timeout de seguridad en getSession para no bloquearse nunca
  */
 export function useAuth() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Refs para acceso síncrono sin depender del closure del listener
+  const userRef = useRef(null);
   const initialized = useRef(false);
 
+  // ─── Helpers ────────────────────────────────────────────────────────────────
+
+  /** Lee el token de Supabase directamente de localStorage sin pasar por el lock */
+  function readTokenFromStorage() {
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('sb-') && key.endsWith('-auth-token')) {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed?.access_token && parsed?.user) return parsed;
+          }
+        }
+      }
+    } catch {}
+    return null;
+  }
+
+  /** Comprueba si el token en localStorage está expirado */
+  function isTokenExpired(tokenData) {
+    if (!tokenData?.expires_at) return false;
+    // expires_at es Unix timestamp en segundos
+    return tokenData.expires_at * 1000 < Date.now();
+  }
+
+  /** Carga el perfil desde Supabase, con fallback a cache */
   const loadProfile = useCallback(async (userId) => {
     try {
       const { data, error: err } = await supabase
@@ -31,11 +68,8 @@ export function useAuth() {
         .single();
       if (err) throw err;
       setProfile(data);
-      // Cache para uso inmediato en renders futuros
       try { localStorage.setItem('kamapp_profile_cache', JSON.stringify(data)); } catch {}
-    } catch (err) {
-      console.error('Error cargando perfil:', err);
-      // Intentar usar cache
+    } catch {
       try {
         const cached = localStorage.getItem('kamapp_profile_cache');
         if (cached) setProfile(JSON.parse(cached));
@@ -43,58 +77,53 @@ export function useAuth() {
     }
   }, []);
 
+  /** Restaura la sesión desde localStorage cuando el lock falla */
+  const recoverSession = useCallback(async () => {
+    const tokenData = readTokenFromStorage();
+    if (!tokenData) return null;
+    if (isTokenExpired(tokenData)) return null;
+
+    try {
+      // Intentar restaurar la sesión con Supabase
+      const { data, error } = await supabase.auth.setSession({
+        access_token: tokenData.access_token,
+        refresh_token: tokenData.refresh_token,
+      });
+      if (!error && data?.session?.user) return data.session.user;
+    } catch {}
+
+    // Si setSession falla, usar el user del token directamente
+    return tokenData.user || null;
+  }, []);
+
+  // ─── Init ────────────────────────────────────────────────────────────────────
+
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
 
     const init = async () => {
       try {
-        // Race: getSession vs timeout de 2s
-        const sessionResult = await Promise.race([
+        // Race entre getSession y timeout de 3s
+        const result = await Promise.race([
           supabase.auth.getSession(),
           new Promise((resolve) =>
-            setTimeout(() => resolve({ data: { session: null }, timedOut: true }), 2000)
+            setTimeout(() => resolve({ timedOut: true, data: { session: null } }), 3000)
           ),
         ]);
 
-        let session = sessionResult?.data?.session;
+        let currentUser = result?.data?.session?.user ?? null;
 
-        // Si timeout, intentar leer token de localStorage directamente
-        if (sessionResult?.timedOut && !session) {
-          console.warn('getSession timeout - leyendo token de localStorage');
-          try {
-            // Buscar cualquier key de Supabase auth en localStorage
-            for (let i = 0; i < localStorage.length; i++) {
-              const key = localStorage.key(i);
-              if (key && (key.startsWith('sb-') || key.startsWith('kamapp-auth'))) {
-                const raw = localStorage.getItem(key);
-                if (raw) {
-                  const parsed = JSON.parse(raw);
-                  if (parsed?.access_token && parsed?.user) {
-                    session = { access_token: parsed.access_token, user: parsed.user };
-                    // Intentar restaurar la sesión
-                    await supabase.auth.setSession({
-                      access_token: parsed.access_token,
-                      refresh_token: parsed.refresh_token,
-                    }).catch(() => {});
-                    break;
-                  }
-                }
-              }
-            }
-          } catch (e) {
-            console.warn('Error leyendo token de localStorage:', e);
-          }
+        // Si getSession tardó demasiado o no devolvió usuario, recuperar de localStorage
+        if (!currentUser) {
+          currentUser = await recoverSession();
         }
 
-        const currentUser = session?.user ?? null;
+        userRef.current = currentUser;
         setUser(currentUser);
-
-        if (currentUser) {
-          await loadProfile(currentUser.id);
-        }
+        if (currentUser) await loadProfile(currentUser.id);
       } catch (err) {
-        console.error('Error init auth:', err);
+        console.error('Auth init error:', err);
       } finally {
         setLoading(false);
       }
@@ -102,39 +131,95 @@ export function useAuth() {
 
     init();
 
-    // Listener de cambios de auth
+    // ─── Listener de cambios de auth ─────────────────────────────────────────
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+
+        // SIGNED_OUT real solo si el usuario lo pidió explícitamente
+        // (no si es consecuencia del bug del lock al volver del background)
+        if (event === 'SIGNED_OUT') {
+          // Verificar si hay token válido en localStorage
+          // Si lo hay, es un SIGNED_OUT falso causado por el bug del lock
+          const tokenData = readTokenFromStorage();
+          if (tokenData && !isTokenExpired(tokenData) && userRef.current) {
+            // SIGNED_OUT falso — ignorar y recuperar sesión
+            console.warn('SIGNED_OUT falso detectado (bug Supabase lock), recuperando sesión...');
+            const recovered = await recoverSession();
+            if (recovered) {
+              userRef.current = recovered;
+              setUser(recovered);
+              await loadProfile(recovered.id);
+              setLoading(false);
+              return;
+            }
+          }
+          // SIGNED_OUT real
+          userRef.current = null;
+          setUser(null);
+          setProfile(null);
+          setError(null);
+          try { localStorage.removeItem('kamapp_profile_cache'); } catch {}
+          setLoading(false);
+          return;
+        }
+
+        // Para cualquier otro evento (SIGNED_IN, TOKEN_REFRESHED, etc.)
         const currentUser = session?.user ?? null;
-        setUser(currentUser);
 
         if (currentUser) {
+          userRef.current = currentUser;
+          setUser(currentUser);
           await loadProfile(currentUser.id);
-        } else {
-          setProfile(null);
-          try { localStorage.removeItem('kamapp_profile_cache'); } catch {}
+        } else if (event === 'TOKEN_REFRESHED' && !currentUser) {
+          // Token refresh falló por el bug del lock — intentar recuperar
+          const recovered = await recoverSession();
+          if (recovered) {
+            userRef.current = recovered;
+            setUser(recovered);
+            await loadProfile(recovered.id);
+          }
+          // Si no se pudo recuperar, mantener el usuario actual (no borrar)
         }
 
         setLoading(false);
-
-        if (event === 'SIGNED_OUT') {
-          setError(null);
-          try { localStorage.removeItem('kamapp_profile_cache'); } catch {}
-        }
       }
     );
 
     return () => subscription.unsubscribe();
-  }, [loadProfile]);
+  }, [loadProfile, recoverSession]);
+
+  // ─── Recuperar sesión al volver al foco (visibilitychange) ──────────────────
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState !== 'visible') return;
+      if (userRef.current) return; // Ya hay usuario, no hacer nada
+
+      // La pestaña vuelve al foco sin usuario — intentar recuperar
+      const tokenData = readTokenFromStorage();
+      if (!tokenData || isTokenExpired(tokenData)) return;
+
+      try {
+        const recovered = await recoverSession();
+        if (recovered) {
+          userRef.current = recovered;
+          setUser(recovered);
+          await loadProfile(recovered.id);
+          setLoading(false);
+        }
+      } catch {}
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [recoverSession, loadProfile]);
+
+  // ─── Actions ─────────────────────────────────────────────────────────────────
 
   const signIn = useCallback(async (email, password) => {
     setError(null);
     setLoading(true);
     try {
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
       if (signInError) {
         const messages = {
           'Invalid login credentials': 'Email o contraseña incorrectos',
@@ -153,18 +238,18 @@ export function useAuth() {
   }, []);
 
   const signOut = useCallback(async () => {
-    try {
-      await supabase.auth.signOut();
-    } catch {}
+    // Marcar que es un logout real antes de llamar a Supabase
+    // para que el listener no lo trate como un SIGNED_OUT falso
+    userRef.current = null;
+    try { await supabase.auth.signOut(); } catch {}
     setUser(null);
     setProfile(null);
     setLoading(false);
-    try {
-      localStorage.removeItem('kamapp_profile_cache');
-    } catch {}
+    try { localStorage.removeItem('kamapp_profile_cache'); } catch {}
   }, []);
 
-  // Usar profile cacheado si el real no ha cargado aún
+  // ─── Return ──────────────────────────────────────────────────────────────────
+
   const effectiveProfile = profile || (() => {
     try {
       const c = localStorage.getItem('kamapp_profile_cache');
