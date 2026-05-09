@@ -82,6 +82,10 @@ export function AppLayout() {
                   className="block px-4 py-2.5 text-sm text-text-secondary hover:bg-surface-1 hover:text-text-primary">
                   📥 Importar canales
                 </NavLink>
+                <NavLink to="/export" onClick={() => setShowMenu(false)}
+                  className="block px-4 py-2.5 text-sm text-text-secondary hover:bg-surface-1 hover:text-text-primary">
+                  📤 Exportar datos
+                </NavLink>
                 <button onClick={() => { setShowMenu(false); signOut(); }}
                   className="w-full text-left px-4 py-2.5 text-sm text-red-500 hover:bg-surface-1">
                   Cerrar sesión
