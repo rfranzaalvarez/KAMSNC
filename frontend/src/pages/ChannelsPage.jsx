@@ -181,7 +181,7 @@ function ChannelDetail({ channelId, onBack }) {
   const { user } = useAuthContext();
   const [channel, setChannel] = useState(null);
   const [visits, setVisits] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [saving, setSaving] = useState(false);
@@ -709,19 +709,14 @@ function NewChannelForm({ onBack, onSaved }) {
 export default function ChannelsPage() {
   const { user } = useAuthContext();
   const [channels, setChannels] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [view, setView] = useState('list'); // 'list' | 'detail' | 'new'
   const [selectedId, setSelectedId] = useState(null);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    if (user) {
-      loadChannels();
-    } else {
-      const t = setTimeout(() => setLoading(false), 3000);
-      return () => clearTimeout(t);
-    }
+    if (user) loadChannels();
   }, [user]);
 
   async function loadChannels() {
