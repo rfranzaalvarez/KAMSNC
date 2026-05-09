@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../components/AuthProvider';
-import { useSessionReady } from '../hooks/useSessionReady';
 import AccountPlan from '../components/AccountPlan';
 import {
   Search, Plus, Building2, Phone, Mail, MapPin,
@@ -709,7 +708,6 @@ function NewChannelForm({ onBack, onSaved }) {
 // ============ PÁGINA PRINCIPAL DE CANALES ============
 export default function ChannelsPage() {
   const { user } = useAuthContext();
-  const { ready, refreshKey } = useSessionReady();
   const [channels, setChannels] = useState([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('list'); // 'list' | 'detail' | 'new'
@@ -718,14 +716,13 @@ export default function ChannelsPage() {
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    if (!ready) return;
     if (user) {
       loadChannels();
     } else {
-      // Sesión lista pero sin usuario: salir del spinner
-      setLoading(false);
+      const t = setTimeout(() => setLoading(false), 3000);
+      return () => clearTimeout(t);
     }
-  }, [ready, refreshKey, user]);
+  }, [user]);
 
   async function loadChannels() {
     setLoading(true);
