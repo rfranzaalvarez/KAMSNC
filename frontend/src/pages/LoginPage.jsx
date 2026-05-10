@@ -70,7 +70,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <div className="absolute bottom-5 left-6 z-10 text-[10px] text-white/70 drop-shadow-md">
-          © {new Date().getFullYear()} Naturgy · KAMApp
+          © {new Date().getFullYear()} Naturgy · CRM para KAMs
         </div>
       </div>
 
@@ -100,14 +100,12 @@ export default function LoginPage() {
           <div className="text-center mb-8 hidden lg:block">
             <img src={NATURGY_LOGO} alt="Naturgy" className="h-10 mx-auto mb-4"
               onError={(e) => { e.target.style.display = 'none'; }} />
-            <h1 className="text-3xl font-extrabold tracking-tight text-text-primary mb-1">KAMApp</h1>
-            <p className="text-text-secondary text-sm">CRM para los mejores KAMs</p>
+            <h1 className="text-3xl font-extrabold tracking-tight text-text-primary mb-1">CRM para KAMs</h1>
           </div>
 
           {/* Título móvil */}
           <div className="text-center mb-5 lg:hidden">
-            <h1 className="text-2xl font-extrabold tracking-tight text-text-primary mb-1">KAMApp</h1>
-            <p className="text-text-secondary text-xs">CRM para los mejores KAMs</p>
+            <h1 className="text-2xl font-extrabold tracking-tight text-text-primary mb-1">CRM para KAMs</h1>
           </div>
 
           {/* Formulario */}
@@ -188,7 +186,7 @@ export default function LoginPage() {
             )}
           </div>
 
-          <p className="text-center text-text-muted text-xs mt-6">¿No tienes cuenta? Contacta con tu administrador.</p>
+          <p className="text-center text-text-muted text-xs mt-6">¿No tienes cuenta? <a href="mailto:kamapp.reporte@gmail.com" className="text-brand-500 font-semibold hover:text-brand-600">Contacta con el administrador</a>.</p>
 
           <div className="text-center mt-8 pt-5 border-t border-surface-3">
             <p className="text-[9px] text-text-muted uppercase tracking-[0.12em] mb-1.5">Powered by</p>
