@@ -9,7 +9,7 @@ import {
 // URL del backend en Railway — se configura como variable de entorno
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://tu-servicio.railway.app';
 
-const SYSTEM_PROMPT = `Eres el asistente de IA de KAMApp, un CRM para KAMs (Key Account Managers) que gestionan canales de venta.
+const SYSTEM_PROMPT = `Eres el asistente de IA del CRM para KAMs, una herramienta para Key Account Managers que gestionan canales de venta.
 
 Tu trabajo es interpretar lo que el usuario te pide y responder con un JSON que indique la acción a ejecutar.
 
@@ -42,7 +42,7 @@ EJEMPLOS:
   → {"action": "plan_visit", "params": {"channel_name": "Manolito", "date": "NEXT_THURSDAY", "time": "10:00"}, "message": "Voy a planificar una visita a Manolito para el jueves a las 10:00."}
 
 - "Hola, ¿qué puedes hacer?"
-  → {"action": "chat", "params": {}, "message": "¡Hola! Soy tu asistente de KAMApp. Puedo ayudarte a: crear canales, consultar visitas y estadísticas, mover canales en el pipeline, planificar visitas, y buscar canales sin actividad reciente. Simplemente dime qué necesitas."}
+  → {"action": "chat", "params": {}, "message": "¡Hola! Soy tu asistente de CRM para KAMs. Puedo ayudarte a: crear canales, consultar visitas y estadísticas, mover canales en el pipeline, planificar visitas, y buscar canales sin actividad reciente. Simplemente dime qué necesitas."}
 
 Hoy es ${new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}.
 Si el usuario dice "jueves", "mañana", etc., calcula la fecha correcta.
@@ -125,7 +125,7 @@ export default function AssistantPage() {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      text: '¡Hola! Soy tu asistente de KAMApp. Puedo crear canales, consultar visitas, mover el pipeline, planificar visitas y mucho más. ¿En qué te ayudo?',
+      text: '¡Hola! Soy tu asistente de CRM para KAMs. Puedo crear canales, consultar visitas, mover el pipeline, planificar visitas y mucho más. ¿En qué te ayudo?',
       timestamp: Date.now(),
     },
   ]);
