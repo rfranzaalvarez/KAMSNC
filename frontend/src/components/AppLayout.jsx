@@ -52,7 +52,7 @@ export function AppLayout() {
           <img src={NATURGY_LOGO} alt="Naturgy" className="h-[18px] opacity-60"
             onError={(e) => { e.target.style.display = 'none'; }} />
           <div className="w-px h-4 bg-surface-3" />
-          <span className="font-bold text-sm text-text-primary tracking-tight">KAMApp</span>
+          <span className="font-bold text-sm text-text-primary tracking-tight">CRM para KAMs</span>
         </button>
         <div className="relative">
           <button onClick={() => setShowMenu(!showMenu)} className="flex items-center gap-2">
