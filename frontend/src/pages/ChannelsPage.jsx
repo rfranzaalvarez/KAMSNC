@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../components/AuthProvider';
 import AccountPlan from '../components/AccountPlan';
+import PreVisitBrief from '../components/PreVisitBrief';
 import {
   Search, Plus, Building2, Phone, Mail, MapPin,
   ChevronRight, User, X, Check, Loader2, Edit3, Upload
@@ -72,7 +73,6 @@ function ChannelList({ channels, loading, onSelect, filter, setFilter, search, s
         </div>
       </div>
 
-      {/* Buscador */}
       <div className="relative mb-3">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
         <input
@@ -89,7 +89,6 @@ function ChannelList({ channels, loading, onSelect, filter, setFilter, search, s
         )}
       </div>
 
-      {/* Filtros */}
       <div className="flex gap-1.5 overflow-x-auto scrollbar-hide mb-4">
         {filters.map(f => (
           <button
@@ -111,14 +110,12 @@ function ChannelList({ channels, loading, onSelect, filter, setFilter, search, s
         ))}
       </div>
 
-      {/* Loading */}
       {loading && (
         <div className="flex items-center justify-center py-12">
           <Loader2 size={24} className="animate-spin text-brand-400" />
         </div>
       )}
 
-      {/* Lista */}
       {!loading && filtered.length === 0 && (
         <div className="text-center py-12">
           <Building2 size={32} className="mx-auto mb-3 text-text-muted" />
@@ -141,12 +138,9 @@ function ChannelList({ channels, loading, onSelect, filter, setFilter, search, s
             onClick={() => onSelect(channel.id)}
             className="w-full flex items-center gap-3 p-3 bg-surface-1 border border-surface-3 rounded-xl mb-2 text-left hover:border-surface-4 transition-colors"
           >
-            {/* Avatar */}
             <div className={`w-10 h-10 rounded-xl ${status.bg} ${status.text} flex items-center justify-center text-sm font-extrabold flex-shrink-0`}>
               {channel.name.charAt(0)}
             </div>
-
-            {/* Info */}
             <div className="flex-1 min-w-0">
               <div className="text-sm font-semibold truncate">{channel.name}</div>
               <div className="flex items-center gap-2 mt-0.5">
@@ -156,8 +150,6 @@ function ChannelList({ channels, loading, onSelect, filter, setFilter, search, s
                 </span>
               </div>
             </div>
-
-            {/* Meta */}
             <div className="flex flex-col items-end gap-1 flex-shrink-0">
               {daysSinceVisit !== null ? (
                 <span className={`text-[10px] font-semibold ${
@@ -305,14 +297,12 @@ function ChannelDetail({ channelId, onBack }) {
 
   return (
     <div>
-      {/* Header */}
       <button onClick={onBack} className="flex items-center gap-1 text-sm text-brand-400 font-semibold mb-4">
         ← Canales
       </button>
 
       <div className="bg-surface-1 border border-surface-3 rounded-2xl p-4 mb-4">
         {editMode ? (
-          /* ---- MODO EDICIÓN ---- */
           <div>
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-base font-bold text-text-primary">Editar canal</h2>
@@ -320,11 +310,9 @@ function ChannelDetail({ channelId, onBack }) {
                 <X size={18} />
               </button>
             </div>
-
             {editError && (
               <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3 text-xs text-red-600">{editError}</div>
             )}
-
             <div className="space-y-3">
               <div>
                 <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Nombre *</label>
@@ -397,7 +385,6 @@ function ChannelDetail({ channelId, onBack }) {
             </div>
           </div>
         ) : (
-          /* ---- MODO LECTURA ---- */
           <>
             <div className="flex items-start gap-3 mb-3">
               <div className={`w-12 h-12 rounded-xl ${status.bg} ${status.text} flex items-center justify-center text-lg font-extrabold flex-shrink-0`}>
@@ -421,45 +408,46 @@ function ChannelDetail({ channelId, onBack }) {
               </button>
             </div>
 
-            {/* Datos de contacto */}
             <div className="space-y-2 mt-4">
-          {channel.contact_name && (
-            <div className="flex items-center gap-2.5 text-sm">
-              <User size={14} className="text-text-muted flex-shrink-0" />
-              <span className="text-text-secondary">{channel.contact_name}</span>
+              {channel.contact_name && (
+                <div className="flex items-center gap-2.5 text-sm">
+                  <User size={14} className="text-text-muted flex-shrink-0" />
+                  <span className="text-text-secondary">{channel.contact_name}</span>
+                </div>
+              )}
+              {channel.address && (
+                <div className="flex items-center gap-2.5 text-sm">
+                  <MapPin size={14} className="text-text-muted flex-shrink-0" />
+                  <span className="text-text-secondary">{channel.address}{channel.city ? `, ${channel.city}` : ''}</span>
+                </div>
+              )}
+              {channel.phone && (
+                <a href={`tel:${channel.phone}`} className="flex items-center gap-2.5 text-sm">
+                  <Phone size={14} className="text-text-muted flex-shrink-0" />
+                  <span className="text-brand-400">{channel.phone}</span>
+                </a>
+              )}
+              {channel.email && (
+                <a href={`mailto:${channel.email}`} className="flex items-center gap-2.5 text-sm">
+                  <Mail size={14} className="text-text-muted flex-shrink-0" />
+                  <span className="text-brand-400">{channel.email}</span>
+                </a>
+              )}
             </div>
-          )}
-          {channel.address && (
-            <div className="flex items-center gap-2.5 text-sm">
-              <MapPin size={14} className="text-text-muted flex-shrink-0" />
-              <span className="text-text-secondary">{channel.address}{channel.city ? `, ${channel.city}` : ''}</span>
-            </div>
-          )}
-          {channel.phone && (
-            <a href={`tel:${channel.phone}`} className="flex items-center gap-2.5 text-sm">
-              <Phone size={14} className="text-text-muted flex-shrink-0" />
-              <span className="text-brand-400">{channel.phone}</span>
-            </a>
-          )}
-          {channel.email && (
-            <a href={`mailto:${channel.email}`} className="flex items-center gap-2.5 text-sm">
-              <Mail size={14} className="text-text-muted flex-shrink-0" />
-              <span className="text-brand-400">{channel.email}</span>
-            </a>
-          )}
-        </div>
 
-        {channel.notes && (
-          <div className="mt-4 p-3 bg-surface-0 rounded-lg">
-            <div className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Notas</div>
-            <p className="text-xs text-text-secondary leading-relaxed">{channel.notes}</p>
-          </div>
-        )}
+            {channel.notes && (
+              <div className="mt-4 p-3 bg-surface-0 rounded-lg">
+                <div className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Notas</div>
+                <p className="text-xs text-text-secondary leading-relaxed">{channel.notes}</p>
+              </div>
+            )}
           </>
         )}
       </div>
 
+      {/* Brief pre-visita con IA */}
       <div className="mb-4">
+        <PreVisitBrief channelId={channelId} channelName={channel.name} />
       </div>
 
       {/* Plan de cuenta */}
@@ -549,10 +537,8 @@ function NewChannelForm({ onBack, onSaved }) {
       setError('El nombre del canal es obligatorio');
       return;
     }
-
     setSaving(true);
     setError('');
-
     try {
       const { data, error: insertError } = await supabase
         .from('channels')
@@ -565,7 +551,6 @@ function NewChannelForm({ onBack, onSaved }) {
         })
         .select()
         .single();
-
       if (insertError) throw insertError;
       onSaved(data.id);
     } catch (err) {
@@ -582,123 +567,59 @@ function NewChannelForm({ onBack, onSaved }) {
       <button onClick={onBack} className="flex items-center gap-1 text-sm text-brand-400 font-semibold mb-4">
         ← Cancelar
       </button>
-
       <h1 className="text-xl font-extrabold tracking-tight mb-4">Nuevo canal</h1>
-
       {error && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 mb-4 text-sm text-red-400">
-          {error}
-        </div>
+        <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 mb-4 text-sm text-red-400">{error}</div>
       )}
-
       <div className="space-y-3">
         <div>
           <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Nombre *</label>
-          <input
-            type="text"
-            value={form.name}
-            onChange={(e) => update('name', e.target.value)}
-            placeholder="Nombre del canal o empresa"
-            className={fieldClass}
-          />
+          <input type="text" value={form.name} onChange={(e) => update('name', e.target.value)}
+            placeholder="Nombre del canal o empresa" className={fieldClass} />
         </div>
-
         <div>
           <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Tipo de canal</label>
-          <select
-            value={form.channel_type}
-            onChange={(e) => update('channel_type', e.target.value)}
-            className={fieldClass}
-          >
+          <select value={form.channel_type} onChange={(e) => update('channel_type', e.target.value)} className={fieldClass}>
             {Object.entries(TYPE_CONFIG).map(([key, label]) => (
               <option key={key} value={key}>{label}</option>
             ))}
           </select>
         </div>
-
         <div>
           <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Persona de contacto</label>
-          <input
-            type="text"
-            value={form.contact_name}
-            onChange={(e) => update('contact_name', e.target.value)}
-            placeholder="Nombre del contacto principal"
-            className={fieldClass}
-          />
+          <input type="text" value={form.contact_name} onChange={(e) => update('contact_name', e.target.value)}
+            placeholder="Nombre del contacto principal" className={fieldClass} />
         </div>
-
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Teléfono</label>
-            <input
-              type="tel"
-              value={form.phone}
-              onChange={(e) => update('phone', e.target.value)}
-              placeholder="+34 612 345 678"
-              className={fieldClass}
-            />
+            <input type="tel" value={form.phone} onChange={(e) => update('phone', e.target.value)}
+              placeholder="+34 612 345 678" className={fieldClass} />
           </div>
           <div>
             <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Email</label>
-            <input
-              type="email"
-              value={form.email}
-              onChange={(e) => update('email', e.target.value)}
-              placeholder="contacto@empresa.com"
-              className={fieldClass}
-            />
+            <input type="email" value={form.email} onChange={(e) => update('email', e.target.value)}
+              placeholder="contacto@empresa.com" className={fieldClass} />
           </div>
         </div>
-
         <div>
           <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Dirección</label>
-          <input
-            type="text"
-            value={form.address}
-            onChange={(e) => update('address', e.target.value)}
-            placeholder="Calle, número"
-            className={fieldClass}
-          />
+          <input type="text" value={form.address} onChange={(e) => update('address', e.target.value)}
+            placeholder="Calle, número" className={fieldClass} />
         </div>
-
         <div>
           <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Ciudad</label>
-          <input
-            type="text"
-            value={form.city}
-            onChange={(e) => update('city', e.target.value)}
-            placeholder="Madrid"
-            className={fieldClass}
-          />
+          <input type="text" value={form.city} onChange={(e) => update('city', e.target.value)}
+            placeholder="Madrid" className={fieldClass} />
         </div>
-
         <div>
           <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Notas</label>
-          <textarea
-            value={form.notes}
-            onChange={(e) => update('notes', e.target.value)}
-            placeholder="Notas sobre el canal..."
-            rows={3}
-            className={`${fieldClass} resize-none`}
-          />
+          <textarea value={form.notes} onChange={(e) => update('notes', e.target.value)}
+            placeholder="Notas sobre el canal..." rows={3} className={`${fieldClass} resize-none`} />
         </div>
-
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="w-full py-3 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 mt-2"
-        >
-          {saving ? (
-            <>
-              <Loader2 size={16} className="animate-spin" />
-              Guardando...
-            </>
-          ) : (
-            <>
-              <Check size={16} />
-              Guardar canal
-            </>
-          )}
+        <button onClick={handleSave} disabled={saving}
+          className="w-full py-3 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 mt-2">
+          {saving ? <><Loader2 size={16} className="animate-spin" /> Guardando...</> : <><Check size={16} /> Guardar canal</>}
         </button>
       </div>
     </div>
@@ -710,7 +631,7 @@ export default function ChannelsPage() {
   const { user } = useAuthContext();
   const [channels, setChannels] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [view, setView] = useState('list'); // 'list' | 'detail' | 'new'
+  const [view, setView] = useState('list');
   const [selectedId, setSelectedId] = useState(null);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
@@ -722,27 +643,19 @@ export default function ChannelsPage() {
   async function loadChannels() {
     setLoading(true);
     try {
-      // Obtener canales con la fecha de última visita
       const { data, error } = await supabase
         .from('channels')
-        .select(`
-          *,
-          visits (checkin_at)
-        `)
+        .select(`*, visits (checkin_at)`)
         .eq('assigned_to', user.id)
         .order('updated_at', { ascending: false });
-
       if (error) throw error;
-
-      // Añadir last_visit_at calculado
       const enriched = (data || []).map(ch => ({
         ...ch,
         last_visit_at: ch.visits?.length > 0
           ? ch.visits.sort((a, b) => new Date(b.checkin_at) - new Date(a.checkin_at))[0].checkin_at
           : null,
-        visits: undefined, // limpiar el join
+        visits: undefined,
       }));
-
       setChannels(enriched);
     } catch (err) {
       console.error('Error cargando canales:', err);
@@ -752,42 +665,12 @@ export default function ChannelsPage() {
   }
 
   function handleSelect(id) {
-    if (id === 'new') {
-      setView('new');
-    } else {
-      setSelectedId(id);
-      setView('detail');
-    }
+    if (id === 'new') { setView('new'); } else { setSelectedId(id); setView('detail'); }
   }
+  function handleBack() { setView('list'); setSelectedId(null); }
+  function handleSaved(newId) { loadChannels(); setSelectedId(newId); setView('detail'); }
 
-  function handleBack() {
-    setView('list');
-    setSelectedId(null);
-  }
-
-  function handleSaved(newId) {
-    loadChannels();
-    setSelectedId(newId);
-    setView('detail');
-  }
-
-  if (view === 'detail' && selectedId) {
-    return <ChannelDetail channelId={selectedId} onBack={handleBack} />;
-  }
-
-  if (view === 'new') {
-    return <NewChannelForm onBack={handleBack} onSaved={handleSaved} />;
-  }
-
-  return (
-    <ChannelList
-      channels={channels}
-      loading={loading}
-      onSelect={handleSelect}
-      filter={filter}
-      setFilter={setFilter}
-      search={search}
-      setSearch={setSearch}
-    />
-  );
+  if (view === 'detail' && selectedId) return <ChannelDetail channelId={selectedId} onBack={handleBack} />;
+  if (view === 'new') return <NewChannelForm onBack={handleBack} onSaved={handleSaved} />;
+  return <ChannelList channels={channels} loading={loading} onSelect={handleSelect} filter={filter} setFilter={setFilter} search={search} setSearch={setSearch} />;
 }
