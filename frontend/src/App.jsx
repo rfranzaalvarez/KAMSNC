@@ -14,6 +14,7 @@ import GamificationPage from './pages/GamificationPage';
 import ImportPage from './pages/ImportPage';
 import AssistantPage from './pages/AssistantPage';
 import ExportPage from './pages/ExportPage';
+import WeeklyReportPage from './pages/WeeklyReportPage';
 
 initOfflineSync();
 
@@ -50,6 +51,7 @@ export default function App() {
               <Route path="/import" element={<ImportPage />} />
               <Route path="/assistant" element={<AssistantPage />} />
               <Route path="/export" element={<ExportPage />} />
+              <Route path="/report" element={<WeeklyReportPage />} />
             </Route>
             <Route
               path="/dashboard"
