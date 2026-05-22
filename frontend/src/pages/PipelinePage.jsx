@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../components/AuthProvider';
 import { Loader2, Plus, ChevronRight, Clock, Building2, X, Check } from 'lucide-react';
@@ -25,27 +26,33 @@ function daysSince(dateStr) {
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
 }
 
-// ============ TARJETA DE CANAL ============
-function ChannelCard({ channel, onDragStart, stage }) {
+function ChannelCard({ channel, onDragStart, stage, onClick }) {
   const daysInStage = daysSince(channel.updated_at);
   const lastVisitDays = channel.last_visit_at ? daysSince(channel.last_visit_at) : null;
+  const isDragging = useRef(false);
 
   return (
     <div
       draggable
       onDragStart={(e) => {
+        isDragging.current = true;
         e.dataTransfer.setData('text/plain', channel.id);
         e.dataTransfer.effectAllowed = 'move';
         onDragStart(channel.id);
       }}
-      className="bg-[#ffffff] border rounded-xl p-3 cursor-grab active:cursor-grabbing hover:border-opacity-60 transition-all group"
+      onDragEnd={() => { isDragging.current = false; }}
+      onClick={() => {
+        if (!isDragging.current) onClick(channel.id);
+      }}
+      className="bg-[#ffffff] border rounded-xl p-3 cursor-pointer active:cursor-grabbing hover:shadow-md hover:border-opacity-80 transition-all group"
       style={{ borderColor: stage.border }}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-semibold truncate">{channel.name}</div>
+          <div className="text-sm font-semibold truncate group-hover:text-[#E87A1E] transition-colors">{channel.name}</div>
           <div className="text-[10px] text-[#5a6078]">{TYPE_LABELS[channel.channel_type] || 'Otro'}</div>
         </div>
+        <ChevronRight size={12} className="text-[#c5cbd6] group-hover:text-[#E87A1E] transition-colors flex-shrink-0 mt-1" />
       </div>
 
       {channel.contact_name && (
@@ -78,8 +85,7 @@ function ChannelCard({ channel, onDragStart, stage }) {
   );
 }
 
-// ============ COLUMNA DEL PIPELINE ============
-function PipelineColumn({ stage, channels, onDrop, onDragStart, dragOver, setDragOver }) {
+function PipelineColumn({ stage, channels, onDrop, onDragStart, dragOver, setDragOver, onChannelClick }) {
   const isOver = dragOver === stage.key;
 
   return (
@@ -98,7 +104,6 @@ function PipelineColumn({ stage, channels, onDrop, onDragStart, dragOver, setDra
         setDragOver(null);
       }}
     >
-      {/* Header */}
       <div className="flex items-center gap-2 mb-3 px-1">
         <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: stage.color }} />
         <span className="text-xs font-bold uppercase tracking-wider" style={{ color: stage.color }}>
@@ -109,7 +114,6 @@ function PipelineColumn({ stage, channels, onDrop, onDragStart, dragOver, setDra
         </span>
       </div>
 
-      {/* Drop zone */}
       <div
         className={`flex-1 space-y-2 p-1.5 rounded-xl min-h-[120px] transition-colors ${
           isOver ? 'bg-[#1a1a2e] ring-1' : 'bg-transparent'
@@ -122,6 +126,7 @@ function PipelineColumn({ stage, channels, onDrop, onDragStart, dragOver, setDra
             channel={ch}
             stage={stage}
             onDragStart={onDragStart}
+            onClick={onChannelClick}
           />
         ))}
 
@@ -144,8 +149,7 @@ function PipelineColumn({ stage, channels, onDrop, onDragStart, dragOver, setDra
   );
 }
 
-// ============ VISTA MOBILE (Lista vertical) ============
-function PipelineMobile({ channelsByStage, onMove, loading }) {
+function PipelineMobile({ channelsByStage, onMove, loading, onChannelClick }) {
   const [expandedStage, setExpandedStage] = useState(null);
   const [movingChannel, setMovingChannel] = useState(null);
 
@@ -183,10 +187,7 @@ function PipelineMobile({ channelsByStage, onMove, loading }) {
               <ChevronRight
                 size={14}
                 className="transition-transform"
-                style={{
-                  color: '#8b90a0',
-                  transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
-                }}
+                style={{ color: '#8b90a0', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)' }}
               />
             </button>
 
@@ -201,15 +202,17 @@ function PipelineMobile({ channelsByStage, onMove, loading }) {
                     className="flex items-center gap-2 p-2.5 rounded-lg bg-[#ffffff] border"
                     style={{ borderColor: stage.border }}
                   >
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold truncate">{ch.name}</div>
+                    <div
+                      className="flex-1 min-w-0 cursor-pointer"
+                      onClick={() => onChannelClick(ch.id)}
+                    >
+                      <div className="text-sm font-semibold truncate hover:text-[#E87A1E] transition-colors">{ch.name}</div>
                       <div className="text-[10px] text-[#8b90a0]">
                         {TYPE_LABELS[ch.channel_type] || 'Otro'}
                         {ch.contact_name && ` · ${ch.contact_name}`}
                       </div>
                     </div>
 
-                    {/* Botones de mover */}
                     {movingChannel === ch.id ? (
                       <div className="flex gap-1 flex-wrap justify-end max-w-[180px]">
                         {STAGES.filter(s => s.key !== stage.key).map(s => (
@@ -248,9 +251,9 @@ function PipelineMobile({ channelsByStage, onMove, loading }) {
   );
 }
 
-// ============ PÁGINA PRINCIPAL DEL PIPELINE ============
 export default function PipelinePage() {
   const { user } = useAuthContext();
+  const navigate = useNavigate();
   const [channels, setChannels] = useState([]);
   const [loading, setLoading] = useState(false);
   const [dragOver, setDragOver] = useState(null);
@@ -258,7 +261,6 @@ export default function PipelinePage() {
   const [toast, setToast] = useState(null);
   const scrollRef = useRef(null);
 
-  // Detectar móvil
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
   useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth < 640);
@@ -305,7 +307,6 @@ export default function PipelinePage() {
   }
 
   async function moveChannel(channelId, newStage) {
-    // Optimistic update
     const oldChannels = [...channels];
     const channel = channels.find(c => c.id === channelId);
     if (!channel || channel.pipeline_stage === newStage) return;
@@ -317,7 +318,6 @@ export default function PipelinePage() {
       c.id === channelId ? { ...c, pipeline_stage: newStage, updated_at: new Date().toISOString() } : c
     ));
 
-    // También actualizar status según la fase
     let newStatus = channel.status;
     if (newStage === 'active') newStatus = 'active';
     else if (newStage === 'lead') newStatus = 'prospect';
@@ -336,7 +336,6 @@ export default function PipelinePage() {
         color: newStageObj?.color,
       });
     } catch (err) {
-      // Rollback
       setChannels(oldChannels);
       setToast({ message: 'Error al mover canal', color: '#ef4444' });
     }
@@ -344,7 +343,10 @@ export default function PipelinePage() {
     setDraggingId(null);
   }
 
-  // Agrupar canales por stage
+  function handleChannelClick(channelId) {
+    navigate(`/channels?detail=${channelId}`);
+  }
+
   const channelsByStage = {};
   STAGES.forEach(s => { channelsByStage[s.key] = []; });
   channels.forEach(ch => {
@@ -353,12 +355,10 @@ export default function PipelinePage() {
     }
   });
 
-  // Totales para el header
   const totalInPipeline = channels.filter(c => !['lead', 'active'].includes(c.pipeline_stage)).length;
 
   return (
     <div>
-      {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
           <h1 className="text-xl font-extrabold tracking-tight">Pipeline</h1>
@@ -368,7 +368,6 @@ export default function PipelinePage() {
         </div>
       </div>
 
-      {/* Resumen visual de funnel */}
       <div className="flex gap-1 mb-4 h-2 rounded-full overflow-hidden bg-[#dde1e8]">
         {STAGES.map(stage => {
           const count = channelsByStage[stage.key]?.length || 0;
@@ -384,7 +383,6 @@ export default function PipelinePage() {
         })}
       </div>
 
-      {/* Vista según dispositivo */}
       {loading ? (
         <div className="flex items-center justify-center py-16">
           <Loader2 size={24} className="animate-spin text-[#E87A1E]" />
@@ -394,9 +392,9 @@ export default function PipelinePage() {
           channelsByStage={channelsByStage}
           onMove={moveChannel}
           loading={loading}
+          onChannelClick={handleChannelClick}
         />
       ) : (
-        /* Vista desktop: Kanban horizontal */
         <div
           ref={scrollRef}
           className="flex gap-3 overflow-x-auto scrollbar-hide pb-4"
@@ -411,12 +409,12 @@ export default function PipelinePage() {
               onDragStart={setDraggingId}
               dragOver={dragOver}
               setDragOver={setDragOver}
+              onChannelClick={handleChannelClick}
             />
           ))}
         </div>
       )}
 
-      {/* Toast */}
       {toast && (
         <div
           className="fixed bottom-24 left-4 right-4 sm:left-auto sm:right-4 sm:w-80 px-4 py-3 rounded-xl text-center text-sm font-bold shadow-xl z-50"
