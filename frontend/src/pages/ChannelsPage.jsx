@@ -636,6 +636,18 @@ export default function ChannelsPage() {
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
 
+  // Leer parámetro ?detail=ID de la URL (deep link desde Pipeline)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const detailId = params.get('detail');
+    if (detailId) {
+      setSelectedId(detailId);
+      setView('detail');
+      // Limpiar la URL sin recargar
+      window.history.replaceState({}, '', '/channels');
+    }
+  }, []);
+
   useEffect(() => {
     if (user) loadChannels();
   }, [user]);
