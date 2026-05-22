@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../components/AuthProvider';
 import AccountPlan from '../components/AccountPlan';
 import PreVisitBrief from '../components/PreVisitBrief';
+import ChannelNotes from '../components/ChannelNotes';
 import {
   Search, Plus, Building2, Phone, Mail, MapPin,
   ChevronRight, User, X, Check, Loader2, Edit3, Upload
@@ -448,6 +449,11 @@ function ChannelDetail({ channelId, onBack }) {
       {/* Brief pre-visita con IA */}
       <div className="mb-4">
         <PreVisitBrief channelId={channelId} channelName={channel.name} />
+      </div>
+
+      {/* Notas del canal */}
+      <div className="mb-4">
+        <ChannelNotes channelId={channelId} />
       </div>
 
       {/* Plan de cuenta */}
