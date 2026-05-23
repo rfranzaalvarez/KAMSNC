@@ -20,7 +20,7 @@ export default function PreVisitBrief({ channelId, channelName }) {
 
     try {
       // 1. Gather all channel data
-      const [channelRes, visitsRes, planRes, alertsRes] = await Promise.allSettled([
+      const [channelRes, visitsRes, planRes, alertsRes, playbookRes] = await Promise.allSettled([
         supabase.from('channels').select('*').eq('id', channelId).single(),
         supabase.from('visits').select('*, channels(name)')
           .eq('channel_id', channelId).order('checkin_at', { ascending: false }).limit(10),
@@ -28,12 +28,15 @@ export default function PreVisitBrief({ channelId, channelName }) {
           .eq('channel_id', channelId).order('year', { ascending: false }).limit(1),
         supabase.from('alerts').select('*')
           .eq('channel_id', channelId).eq('is_dismissed', false),
+        supabase.from('kam_playbook').select('section, content')
+          .eq('is_active', true).order('sort_order'),
       ]);
 
       const channel = channelRes.status === 'fulfilled' ? channelRes.value.data : null;
       const visits = visitsRes.status === 'fulfilled' ? (visitsRes.value.data || []) : [];
       const plan = planRes.status === 'fulfilled' ? (planRes.value.data?.[0] || null) : null;
       const alerts = alertsRes.status === 'fulfilled' ? (alertsRes.value.data || []) : [];
+      const playbook = playbookRes.status === 'fulfilled' ? (playbookRes.value.data || []) : [];
 
       if (!channel) throw new Error('No se pudo cargar el canal');
 
@@ -74,6 +77,11 @@ ${plan ? `- Objetivo: ${plan.objective || 'No definido'}
 ALERTAS ACTIVAS: ${alerts.length > 0 ? alerts.map(a => a.title).join(', ') : 'Ninguna'}
 `;
 
+      // Build playbook context
+      const playbookContext = playbook.length > 0
+        ? '\n\nPOLÍTICAS DEL PLAYBOOK DE NATURGY:\n' + playbook.map(p => `[${p.section}]: ${p.content}`).join('\n')
+        : '';
+
       // 3. Call Claude via Railway backend
       const response = await fetch(`${BACKEND_URL}/api/assistant`, {
         method: 'POST',
@@ -81,19 +89,34 @@ ALERTAS ACTIVAS: ${alerts.length > 0 ? alerts.map(a => a.title).join(', ') : 'Ni
         body: JSON.stringify({
           system: `Eres un asistente de ventas experto que prepara briefs pre-visita para KAMs (Key Account Managers) de Naturgy.
 
-Tu trabajo es analizar los datos del canal y generar un brief conciso y accionable en español.
+Tu trabajo es analizar los datos del canal y generar un brief conciso y accionable en español, SIGUIENDO LAS POLÍTICAS DEL PLAYBOOK DE NATURGY.
+
+INSTRUCCIONES CLAVE DEL PLAYBOOK:
+- Aplica las fases de captación (Autogestión, Prospección, Aproximación, Negociación, Reporting) según la fase en la que se encuentre el canal.
+- Si es primera visita: seguir el protocolo de preparación (revisar info, preparar preguntas, orden del día: objetivo, presentación Naturgy, presentación partner, dudas, cierre).
+- NO centrar la primera visita en condiciones económicas. Postponer a segundo encuentro con business case.
+- Si el prospecto no tiene experiencia energética: explicar claves del negocio, foco en colaboración mutua.
+- Siempre cerrar con acción concreta (agendar siguiente reunión).
+- Recordar los 120 minutos de oro diarios para captación.
+- DOs: escucha activa, propuesta de valor clara, involucrar al prospecto.
+- DONTs: no presionar con objetivos de captación, no tecnicismos excesivos.
+${playbook.length > 0 ? '\nDETALLE DEL PLAYBOOK:\n' + playbook.map(p => `[${p.section}]: ${p.content}`).join('\n') : ''}
 
 Responde SIEMPRE con este formato exacto (sin markdown, sin backticks, JSON puro):
 {
   "resumen": "2-3 frases resumen del estado del canal",
+  "fase_captacion": "la fase del playbook en la que se encuentra este canal",
   "puntos_clave": ["punto 1", "punto 2", "punto 3"],
-  "objetivo_sugerido": "objetivo concreto para la próxima visita",
+  "objetivo_sugerido": "objetivo concreto para la próxima visita según el playbook",
   "temas_a_tratar": ["tema 1", "tema 2", "tema 3"],
+  "preguntas_clave": ["pregunta que el KAM debe hacer en la visita"],
+  "dos": ["qué hacer en esta visita según el playbook"],
+  "donts": ["qué NO hacer en esta visita según el playbook"],
   "riesgos": ["riesgo o alerta si hay alguno"],
-  "tip": "un consejo práctico para esta visita"
+  "tip": "un consejo práctico del playbook para esta visita"
 }
 
-Sé directo, práctico y orientado a la acción. No uses lenguaje genérico. Personaliza según los datos reales del canal.`,
+Sé directo, práctico y orientado a la acción. Personaliza según los datos reales del canal y la fase del playbook que aplique.`,
           messages: [
             { role: 'user', content: `Prepara un brief pre-visita para el canal "${channelName}" con estos datos:\n${context}` }
           ],
@@ -195,6 +218,9 @@ Sé directo, práctico y orientado a la acción. No uses lenguaje genérico. Per
           <div className="bg-brand-50 border border-brand-200 rounded-lg p-3">
             <div className="text-[9px] font-bold text-brand-600 uppercase tracking-wider mb-1">🎯 Objetivo sugerido</div>
             <p className="text-sm font-semibold text-text-primary">{brief.objetivo_sugerido}</p>
+            {brief.fase_captacion && (
+              <p className="text-[10px] text-brand-500 mt-1">Fase del Playbook: {brief.fase_captacion}</p>
+            )}
           </div>
 
           {/* Puntos clave */}
@@ -221,6 +247,43 @@ Sé directo, práctico y orientado a la acción. No uses lenguaje genérico. Per
               ))}
             </div>
           </div>
+
+          {/* Preguntas clave */}
+          {brief.preguntas_clave?.length > 0 && (
+            <div>
+              <div className="text-[9px] font-bold text-text-muted uppercase tracking-wider mb-1.5">❓ Preguntas para la visita</div>
+              <div className="space-y-1">
+                {brief.preguntas_clave.map((p, i) => (
+                  <div key={i} className="flex items-start gap-2 text-xs text-text-secondary">
+                    <span className="text-navy-500 mt-0.5 font-bold">{i+1}.</span>
+                    <span>{p}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Do's y Don'ts */}
+          {(brief.dos?.length > 0 || brief.donts?.length > 0) && (
+            <div className="grid grid-cols-2 gap-2">
+              {brief.dos?.length > 0 && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-2.5">
+                  <div className="text-[9px] font-bold text-green-600 uppercase tracking-wider mb-1">✅ Hacer</div>
+                  {brief.dos.map((d, i) => (
+                    <p key={i} className="text-[11px] text-green-700 mb-0.5">{d}</p>
+                  ))}
+                </div>
+              )}
+              {brief.donts?.length > 0 && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-2.5">
+                  <div className="text-[9px] font-bold text-red-500 uppercase tracking-wider mb-1">❌ No hacer</div>
+                  {brief.donts.map((d, i) => (
+                    <p key={i} className="text-[11px] text-red-600 mb-0.5">{d}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Riesgos */}
           {brief.riesgos?.length > 0 && (
