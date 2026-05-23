@@ -5,6 +5,8 @@ import { useAuthContext } from '../components/AuthProvider';
 import AccountPlan from '../components/AccountPlan';
 import PreVisitBrief from '../components/PreVisitBrief';
 import ChannelNotes from '../components/ChannelNotes';
+import ChannelClassification from '../components/ChannelClassification';
+import { useChannelTypes } from '../hooks/useChannelTypes';
 import {
   Search, Plus, Building2, Phone, Mail, MapPin,
   ChevronRight, User, X, Check, Loader2, Edit3, Upload
@@ -17,14 +19,6 @@ const STATUS_CONFIG = {
   inactive: { label: 'Inactivo', bg: 'bg-red-500/20', text: 'text-red-400', border: 'border-red-500/30' },
 };
 
-const TYPE_CONFIG = {
-  distributor: 'Distribuidor',
-  installer: 'Instalador',
-  reseller: 'Revendedor',
-  commercial: 'Comercializadora',
-  other: 'Otro',
-};
-
 const PIPELINE_CONFIG = {
   lead: 'Lead',
   first_contact: 'Primer contacto',
@@ -35,7 +29,7 @@ const PIPELINE_CONFIG = {
 };
 
 // ============ LISTADO DE CANALES ============
-function ChannelList({ channels, loading, onSelect, filter, setFilter, search, setSearch }) {
+function ChannelList({ channels, loading, onSelect, filter, setFilter, search, setSearch, typeMap }) {
   const filters = [
     { key: 'all', label: 'Todos', count: channels.length },
     { key: 'active', label: 'Activos', count: channels.filter(c => c.status === 'active').length },
@@ -128,7 +122,7 @@ function ChannelList({ channels, loading, onSelect, filter, setFilter, search, s
 
       {!loading && filtered.map(channel => {
         const status = STATUS_CONFIG[channel.status] || STATUS_CONFIG.prospect;
-        const type = TYPE_CONFIG[channel.channel_type] || 'Otro';
+        const type = typeMap[channel.channel_type] || channel.channel_type || 'Otro';
         const daysSinceVisit = channel.last_visit_at
           ? Math.floor((Date.now() - new Date(channel.last_visit_at).getTime()) / (1000 * 60 * 60 * 24))
           : null;
@@ -170,7 +164,7 @@ function ChannelList({ channels, loading, onSelect, filter, setFilter, search, s
 }
 
 // ============ DETALLE DE CANAL ============
-function ChannelDetail({ channelId, onBack }) {
+function ChannelDetail({ channelId, onBack, types, typeMap }) {
   const { user } = useAuthContext();
   const [channel, setChannel] = useState(null);
   const [visits, setVisits] = useState([]);
@@ -195,7 +189,7 @@ function ChannelDetail({ channelId, onBack }) {
       setChannel(ch);
       setEditForm({
         name: ch?.name || '',
-        channel_type: ch?.channel_type || 'other',
+        channel_type: ch?.channel_type || 'energia_mayorista',
         contact_name: ch?.contact_name || '',
         phone: ch?.phone || '',
         email: ch?.email || '',
@@ -222,7 +216,7 @@ function ChannelDetail({ channelId, onBack }) {
   function startEdit() {
     setEditForm({
       name: channel.name || '',
-      channel_type: channel.channel_type || 'other',
+      channel_type: channel.channel_type || 'energia_mayorista',
       contact_name: channel.contact_name || '',
       phone: channel.phone || '',
       email: channel.email || '',
@@ -287,7 +281,7 @@ function ChannelDetail({ channelId, onBack }) {
   }
 
   const status = STATUS_CONFIG[channel.status] || STATUS_CONFIG.prospect;
-  const type = TYPE_CONFIG[channel.channel_type] || 'Otro';
+  const type = typeMap[channel.channel_type] || channel.channel_type || 'Otro';
   const pipeline = PIPELINE_CONFIG[channel.pipeline_stage] || '-';
 
   const resultConfig = {
@@ -325,7 +319,7 @@ function ChannelDetail({ channelId, onBack }) {
                   <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Tipo</label>
                   <select value={editForm.channel_type} onChange={(e) => updateField('channel_type', e.target.value)}
                     className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500">
-                    {Object.entries(TYPE_CONFIG).map(([key, label]) => (
+                    {types.map(({ key, label }) => (
                       <option key={key} value={key}>{label}</option>
                     ))}
                   </select>
@@ -446,6 +440,11 @@ function ChannelDetail({ channelId, onBack }) {
         )}
       </div>
 
+      {/* Clasificación del canal */}
+      <div className="mb-4">
+        <ChannelClassification channelId={channelId} />
+      </div>
+
       {/* Brief pre-visita con IA */}
       <div className="mb-4">
         <PreVisitBrief channelId={channelId} channelName={channel.name} />
@@ -521,13 +520,13 @@ function ChannelDetail({ channelId, onBack }) {
 }
 
 // ============ FORMULARIO NUEVO CANAL ============
-function NewChannelForm({ onBack, onSaved }) {
+function NewChannelForm({ onBack, onSaved, types }) {
   const { user } = useAuthContext();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [form, setForm] = useState({
     name: '',
-    channel_type: 'other',
+    channel_type: 'energia_mayorista',
     contact_name: '',
     phone: '',
     email: '',
@@ -586,7 +585,7 @@ function NewChannelForm({ onBack, onSaved }) {
         <div>
           <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Tipo de canal</label>
           <select value={form.channel_type} onChange={(e) => update('channel_type', e.target.value)} className={fieldClass}>
-            {Object.entries(TYPE_CONFIG).map(([key, label]) => (
+            {types.map(({ key, label }) => (
               <option key={key} value={key}>{label}</option>
             ))}
           </select>
@@ -635,6 +634,7 @@ function NewChannelForm({ onBack, onSaved }) {
 // ============ PÁGINA PRINCIPAL DE CANALES ============
 export default function ChannelsPage() {
   const { user } = useAuthContext();
+  const { types, typeMap } = useChannelTypes();
   const [channels, setChannels] = useState([]);
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState('list');
@@ -688,7 +688,7 @@ export default function ChannelsPage() {
   function handleBack() { setView('list'); setSelectedId(null); }
   function handleSaved(newId) { loadChannels(); setSelectedId(newId); setView('detail'); }
 
-  if (view === 'detail' && selectedId) return <ChannelDetail channelId={selectedId} onBack={handleBack} />;
-  if (view === 'new') return <NewChannelForm onBack={handleBack} onSaved={handleSaved} />;
-  return <ChannelList channels={channels} loading={loading} onSelect={handleSelect} filter={filter} setFilter={setFilter} search={search} setSearch={setSearch} />;
+  if (view === 'detail' && selectedId) return <ChannelDetail channelId={selectedId} onBack={handleBack} types={types} typeMap={typeMap} />;
+  if (view === 'new') return <NewChannelForm onBack={handleBack} onSaved={handleSaved} types={types} />;
+  return <ChannelList channels={channels} loading={loading} onSelect={handleSelect} filter={filter} setFilter={setFilter} search={search} setSearch={setSearch} typeMap={typeMap} />;
 }
