@@ -6,6 +6,7 @@ import AccountPlan from '../components/AccountPlan';
 import PreVisitBrief from '../components/PreVisitBrief';
 import ChannelNotes from '../components/ChannelNotes';
 import ChannelClassification from '../components/ChannelClassification';
+import ClassificationSelector from '../components/ClassificationSelector';
 import { useChannelTypes } from '../hooks/useChannelTypes';
 import {
   Search, Plus, Building2, Phone, Mail, MapPin,
@@ -515,9 +516,10 @@ function NewChannelForm({ onBack, onSaved, types }) {
   const { user } = useAuthContext();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [classificationError, setClassificationError] = useState('');
+  const [classifications, setClassifications] = useState([]);
   const [form, setForm] = useState({
     name: '',
-    channel_type: 'energia_mayorista',
     contact_name: '',
     phone: '',
     email: '',
@@ -533,14 +535,25 @@ function NewChannelForm({ onBack, onSaved, types }) {
       setError('El nombre del canal es obligatorio');
       return;
     }
+    if (classifications.length === 0) {
+      setClassificationError('Selecciona al menos una clasificación');
+      return;
+    }
     setSaving(true);
     setError('');
+    setClassificationError('');
     try {
+      // 1. Crear el canal
       const { data, error: insertError } = await supabase
         .from('channels')
         .insert({
-          ...form,
           name: form.name.trim(),
+          contact_name: form.contact_name || null,
+          phone: form.phone || null,
+          email: form.email || null,
+          address: form.address || null,
+          city: form.city || null,
+          notes: form.notes || null,
           assigned_to: user.id,
           status: 'prospect',
           pipeline_stage: 'lead',
@@ -548,6 +561,18 @@ function NewChannelForm({ onBack, onSaved, types }) {
         .select()
         .single();
       if (insertError) throw insertError;
+
+      // 2. Guardar clasificaciones
+      const classInserts = classifications.map(c => ({
+        channel_id: data.id,
+        classification_id: c.classification_id,
+        custom_text: c.custom_text || null,
+      }));
+      const { error: classError } = await supabase
+        .from('channel_classifications')
+        .insert(classInserts);
+      if (classError) console.error('Error guardando clasificaciones:', classError);
+
       onSaved(data.id);
     } catch (err) {
       setError(err.message || 'Error al guardar');
@@ -563,8 +588,7 @@ function NewChannelForm({ onBack, onSaved, types }) {
       <button onClick={onBack} className="flex items-center gap-1 text-sm text-brand-400 font-semibold mb-4">
         ← Cancelar
       </button>
-      <h1 className="text-xl font-extrabold tracking-tight mb-2">Nuevo canal</h1>
-      <p className="text-xs text-text-muted mb-4">Tras crear el canal, podrás asignarle su clasificación (Energia, Solar, CAEs...)</p>
+      <h1 className="text-xl font-extrabold tracking-tight mb-4">Nuevo canal</h1>
       {error && (
         <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 mb-4 text-sm text-red-400">{error}</div>
       )}
@@ -574,6 +598,14 @@ function NewChannelForm({ onBack, onSaved, types }) {
           <input type="text" value={form.name} onChange={(e) => update('name', e.target.value)}
             placeholder="Nombre del canal o empresa" className={fieldClass} />
         </div>
+
+        {/* Clasificación obligatoria */}
+        <ClassificationSelector
+          value={classifications}
+          onChange={(v) => { setClassifications(v); setClassificationError(''); }}
+          error={classificationError}
+        />
+
         <div>
           <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Persona de contacto</label>
           <input type="text" value={form.contact_name} onChange={(e) => update('contact_name', e.target.value)}
