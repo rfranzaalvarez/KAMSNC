@@ -178,7 +178,7 @@ export default function ClassificationSelector({ value = [], onChange, error }) 
                   const hasTypes = items.some(it => it.tipo);
 
                   if (!hasTypes) {
-                    // Subcanal sin tipos — un solo checkbox
+                    // Subcanal sin tipos — checkbox directo al nivel del canal
                     const cls = items[0];
                     const checked = isSelected(cls.id);
                     return (
@@ -196,28 +196,30 @@ export default function ClassificationSelector({ value = [], onChange, error }) 
                     );
                   }
 
-                  // Subcanal con tipos
+                  // Subcanal CON tipos — mostrar como grupo con borde y padding
                   return (
-                    <div key={subcanal} className="ml-1 mb-1">
-                      <div className="text-[9px] font-bold text-text-muted uppercase tracking-wider px-2 py-1">
+                    <div key={subcanal} className="ml-1 mb-1 border border-surface-3 rounded-lg overflow-hidden">
+                      <div className="text-[9px] font-bold text-text-muted uppercase tracking-wider px-3 py-1.5 bg-surface-1 border-b border-surface-3">
                         {subcanal}
                       </div>
-                      {items.map(cls => {
-                        const checked = isSelected(cls.id);
-                        return (
-                          <button key={cls.id} type="button" onClick={() => toggle(cls)}
-                            className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left transition-colors ${
-                              checked ? 'bg-brand-500/10' : 'hover:bg-surface-1'
-                            }`}>
-                            <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
-                              checked ? 'bg-brand-500 border-brand-500' : 'border-surface-3'
-                            }`}>
-                              {checked && <Check size={10} className="text-white" />}
-                            </div>
-                            <span className="text-xs text-text-secondary">{cls.tipo || subcanal}</span>
-                          </button>
-                        );
-                      })}
+                      <div className="p-1">
+                        {items.map(cls => {
+                          const checked = isSelected(cls.id);
+                          return (
+                            <button key={cls.id} type="button" onClick={() => toggle(cls)}
+                              className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left transition-colors ${
+                                checked ? 'bg-brand-500/10' : 'hover:bg-surface-1'
+                              }`}>
+                              <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+                                checked ? 'bg-brand-500 border-brand-500' : 'border-surface-3'
+                              }`}>
+                                {checked && <Check size={10} className="text-white" />}
+                              </div>
+                              <span className="text-xs text-text-secondary">{cls.tipo}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   );
                 })}
