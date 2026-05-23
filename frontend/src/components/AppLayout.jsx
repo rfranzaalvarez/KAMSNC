@@ -1,17 +1,17 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Home, Building2, BarChart3, Trophy, Sparkles } from 'lucide-react';
+import { Home, Building2, BarChart3, Trophy, Sparkles, CalendarDays } from 'lucide-react';
 import { useAuthContext } from './AuthProvider';
 import { useState, useEffect } from 'react';
 import { offlineQueue } from '../lib/offline';
 
 const NATURGY_LOGO = 'https://www.naturgy.es/content/dam/naturgy/espana/global/logos/logo_naturgy_home_mobile.svg';
 
-const navItems = [
+const baseNavItems = [
   { to: '/home', icon: Home, label: 'Mi día' },
   { to: '/channels', icon: Building2, label: 'Canales' },
-  { to: '/assistant', icon: Sparkles, label: 'Asistente' },
-  { to: '/ranking', icon: Trophy, label: 'Ranking' },
+  { to: '/calendar', icon: CalendarDays, label: 'Agenda' },
   { to: '/pipeline', icon: BarChart3, label: 'Pipeline' },
+  { to: '/assistant', icon: Sparkles, label: 'Asistente' },
 ];
 
 export function AppLayout() {
@@ -74,10 +74,6 @@ export function AppLayout() {
                     📊 Dashboard Manager
                   </NavLink>
                 )}
-                <NavLink to="/calendar" onClick={() => setShowMenu(false)}
-                  className="block px-4 py-2.5 text-sm text-text-secondary hover:bg-surface-1 hover:text-text-primary">
-                  📅 Agenda
-                </NavLink>
                 <NavLink to="/import" onClick={() => setShowMenu(false)}
                   className="block px-4 py-2.5 text-sm text-text-secondary hover:bg-surface-1 hover:text-text-primary">
                   📥 Importar canales
@@ -104,7 +100,7 @@ export function AppLayout() {
 
       <nav className="bottom-nav border-t border-surface-3">
         <div className="flex justify-around py-2 px-2">
-          {navItems.map(({ to, icon: Icon, label }) => (
+          {[...baseNavItems, ...(isManager ? [{ to: '/ranking', icon: Trophy, label: 'Ranking' }] : [])].map(({ to, icon: Icon, label }) => (
             <NavLink key={to} to={to}
               className={({ isActive }) => `flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors ${isActive ? 'text-brand-500' : 'text-text-muted hover:text-text-secondary'}`}>
               <Icon size={20} strokeWidth={2} />
