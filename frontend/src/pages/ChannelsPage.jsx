@@ -260,7 +260,7 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
           email: editForm.email || null,
           cif: editForm.cif || null,
           website: editForm.website || null,
-          google_rating: editForm.google_rating ? parseFloat(editForm.google_rating) : null,
+          google_rating: editForm.google_rating && editForm.google_rating !== 'no_tiene' ? parseFloat(editForm.google_rating) : null,
           address: editForm.address || null,
           city: editForm.city || null,
           province: editForm.province || null,
@@ -367,8 +367,21 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Valoración Google</label>
-                  <input type="number" value={editForm.google_rating} onChange={(e) => updateField('google_rating', e.target.value)}
-                    placeholder="4.5" min="0" max="5" step="0.1" className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500" />
+                  <select value={editForm.google_rating ?? ''} onChange={(e) => updateField('google_rating', e.target.value)}
+                    className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500">
+                    <option value="">Seleccionar...</option>
+                    <option value="no_tiene">No tiene</option>
+                    <option value="5">⭐ 5.0</option>
+                    <option value="4.5">⭐ 4.5</option>
+                    <option value="4">⭐ 4.0</option>
+                    <option value="3.5">⭐ 3.5</option>
+                    <option value="3">⭐ 3.0</option>
+                    <option value="2.5">⭐ 2.5</option>
+                    <option value="2">⭐ 2.0</option>
+                    <option value="1.5">⭐ 1.5</option>
+                    <option value="1">⭐ 1.0</option>
+                    <option value="0.5">⭐ 0.5</option>
+                  </select>
                 </div>
               </div>
               <div>
@@ -460,10 +473,15 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
                   <span className="text-brand-400">{channel.website}</span>
                 </a>
               )}
-              {channel.google_rating != null && (
+              {channel.google_rating != null ? (
                 <div className="flex items-center gap-2.5 text-sm">
                   <span className="text-text-muted flex-shrink-0 text-xs">⭐</span>
                   <span className="text-text-secondary">{channel.google_rating} / 5</span>
+                </div>
+              ) : channel.google_rating === null && channel.cif && (
+                <div className="flex items-center gap-2.5 text-sm">
+                  <span className="text-text-muted flex-shrink-0 text-xs">⭐</span>
+                  <span className="text-text-muted">Sin valoración en Google</span>
                 </div>
               )}
             </div>
@@ -643,7 +661,7 @@ function NewChannelForm({ onBack, onSaved, types }) {
           email: form.email || null,
           cif: form.cif || null,
           website: form.website || null,
-          google_rating: form.google_rating ? parseFloat(form.google_rating) : null,
+          google_rating: form.google_rating && form.google_rating !== 'no_tiene' ? parseFloat(form.google_rating) : null,
           address: form.address || null,
           city: form.city || null,
           province: form.province || null,
@@ -728,8 +746,21 @@ function NewChannelForm({ onBack, onSaved, types }) {
           </div>
           <div>
             <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Valoración Google</label>
-            <input type="number" value={form.google_rating} onChange={(e) => update('google_rating', e.target.value)}
-              placeholder="4.5" min="0" max="5" step="0.1" className={fieldClass} />
+            <select value={form.google_rating} onChange={(e) => update('google_rating', e.target.value)}
+              className={fieldClass}>
+              <option value="">Seleccionar...</option>
+              <option value="no_tiene">No tiene</option>
+              <option value="5">⭐ 5.0</option>
+              <option value="4.5">⭐ 4.5</option>
+              <option value="4">⭐ 4.0</option>
+              <option value="3.5">⭐ 3.5</option>
+              <option value="3">⭐ 3.0</option>
+              <option value="2.5">⭐ 2.5</option>
+              <option value="2">⭐ 2.0</option>
+              <option value="1.5">⭐ 1.5</option>
+              <option value="1">⭐ 1.0</option>
+              <option value="0.5">⭐ 0.5</option>
+            </select>
           </div>
         </div>
         <div>
