@@ -314,16 +314,7 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
                 <input type="text" value={editForm.name} onChange={(e) => updateField('name', e.target.value)}
                   className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Tipo</label>
-                  <select value={editForm.channel_type} onChange={(e) => updateField('channel_type', e.target.value)}
-                    className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500">
-                    {types.map(({ key, label }) => (
-                      <option key={key} value={key}>{label}</option>
-                    ))}
-                  </select>
-                </div>
+              <div className="grid grid-cols-1 gap-3">
                 <div>
                   <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Estado</label>
                   <select value={editForm.status} onChange={(e) => updateField('status', e.target.value)}
@@ -572,7 +563,8 @@ function NewChannelForm({ onBack, onSaved, types }) {
       <button onClick={onBack} className="flex items-center gap-1 text-sm text-brand-400 font-semibold mb-4">
         ← Cancelar
       </button>
-      <h1 className="text-xl font-extrabold tracking-tight mb-4">Nuevo canal</h1>
+      <h1 className="text-xl font-extrabold tracking-tight mb-2">Nuevo canal</h1>
+      <p className="text-xs text-text-muted mb-4">Tras crear el canal, podrás asignarle su clasificación (Energia, Solar, CAEs...)</p>
       {error && (
         <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 mb-4 text-sm text-red-400">{error}</div>
       )}
@@ -581,14 +573,6 @@ function NewChannelForm({ onBack, onSaved, types }) {
           <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Nombre *</label>
           <input type="text" value={form.name} onChange={(e) => update('name', e.target.value)}
             placeholder="Nombre del canal o empresa" className={fieldClass} />
-        </div>
-        <div>
-          <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Tipo de canal</label>
-          <select value={form.channel_type} onChange={(e) => update('channel_type', e.target.value)} className={fieldClass}>
-            {types.map(({ key, label }) => (
-              <option key={key} value={key}>{label}</option>
-            ))}
-          </select>
         </div>
         <div>
           <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Persona de contacto</label>
