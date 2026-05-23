@@ -8,6 +8,7 @@ import ChannelNotes from '../components/ChannelNotes';
 import ChannelClassification from '../components/ChannelClassification';
 import ClassificationSelector from '../components/ClassificationSelector';
 import CompanyAnalysis from '../components/CompanyAnalysis';
+import ContactHub from '../components/ContactHub';
 import { useChannelTypes } from '../hooks/useChannelTypes';
 import {
   Search, Plus, Building2, Phone, Mail, MapPin,
@@ -485,6 +486,11 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
       {/* Análisis de empresa */}
       <div className="mb-4">
         <CompanyAnalysis channel={channel} onChannelUpdate={setChannel} />
+      </div>
+
+      {/* Centro de contacto */}
+      <div className="mb-4">
+        <ContactHub channel={channel} />
       </div>
 
       {/* Brief pre-visita con IA */}
