@@ -9,7 +9,9 @@ import ChannelClassification from '../components/ChannelClassification';
 import ClassificationSelector from '../components/ClassificationSelector';
 import CompanyAnalysis from '../components/CompanyAnalysis';
 import ContactHub from '../components/ContactHub';
+import AddressAutocomplete from '../components/AddressAutocomplete';
 import { useChannelTypes } from '../hooks/useChannelTypes';
+import { validatePhone, validateEmail, validateCIF } from '../lib/validators';
 import {
   Search, Plus, Building2, Phone, Mail, MapPin,
   ChevronRight, User, X, Check, Loader2, Edit3, Upload
@@ -574,6 +576,7 @@ function NewChannelForm({ onBack, onSaved, types }) {
   const [error, setError] = useState('');
   const [classificationError, setClassificationError] = useState('');
   const [classifications, setClassifications] = useState([]);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [form, setForm] = useState({
     name: '',
     contact_name: '',
@@ -587,9 +590,38 @@ function NewChannelForm({ onBack, onSaved, types }) {
     notes: '',
   });
 
-  const update = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
+  const update = (field, value) => {
+    setForm(prev => ({ ...prev, [field]: value }));
+    // Validar en tiempo real
+    if (field === 'phone') {
+      const v = validatePhone(value);
+      setFieldErrors(prev => ({ ...prev, phone: v.valid ? '' : v.error }));
+    }
+    if (field === 'email') {
+      const v = validateEmail(value);
+      setFieldErrors(prev => ({ ...prev, email: v.valid ? '' : v.error }));
+    }
+    if (field === 'cif') {
+      const v = validateCIF(value);
+      setFieldErrors(prev => ({ ...prev, cif: v.valid ? '' : v.error }));
+    }
+  };
 
   async function handleSave() {
+    // Validar todos los campos
+    const phoneV = validatePhone(form.phone);
+    const emailV = validateEmail(form.email);
+    const cifV = validateCIF(form.cif);
+    const errors = {};
+    if (!phoneV.valid) errors.phone = phoneV.error;
+    if (!emailV.valid) errors.email = emailV.error;
+    if (!cifV.valid) errors.cif = cifV.error;
+    setFieldErrors(errors);
+
+    if (Object.keys(errors).length > 0) {
+      setError('Corrige los errores en los campos marcados');
+      return;
+    }
     if (!form.name.trim()) {
       setError('El nombre del canal es obligatorio');
       return;
@@ -677,19 +709,22 @@ function NewChannelForm({ onBack, onSaved, types }) {
           <div>
             <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Teléfono</label>
             <input type="tel" value={form.phone} onChange={(e) => update('phone', e.target.value)}
-              placeholder="+34 612 345 678" className={fieldClass} />
+              placeholder="+34 612 345 678" className={`${fieldClass} ${fieldErrors.phone ? 'border-red-400 focus:border-red-500' : ''}`} />
+            {fieldErrors.phone && <p className="text-[10px] text-red-500 mt-0.5">{fieldErrors.phone}</p>}
           </div>
           <div>
             <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Email</label>
             <input type="email" value={form.email} onChange={(e) => update('email', e.target.value)}
-              placeholder="contacto@empresa.com" className={fieldClass} />
+              placeholder="contacto@empresa.com" className={`${fieldClass} ${fieldErrors.email ? 'border-red-400 focus:border-red-500' : ''}`} />
+            {fieldErrors.email && <p className="text-[10px] text-red-500 mt-0.5">{fieldErrors.email}</p>}
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">CIF</label>
-            <input type="text" value={form.cif} onChange={(e) => update('cif', e.target.value)}
-              placeholder="B12345678" className={fieldClass} />
+            <input type="text" value={form.cif} onChange={(e) => update('cif', e.target.value.toUpperCase())}
+              placeholder="B12345678" className={`${fieldClass} ${fieldErrors.cif ? 'border-red-400 focus:border-red-500' : ''}`} />
+            {fieldErrors.cif && <p className="text-[10px] text-red-500 mt-0.5">{fieldErrors.cif}</p>}
           </div>
           <div>
             <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Valoración Google</label>
@@ -704,8 +739,13 @@ function NewChannelForm({ onBack, onSaved, types }) {
         </div>
         <div>
           <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Dirección</label>
-          <input type="text" value={form.address} onChange={(e) => update('address', e.target.value)}
-            placeholder="Calle, número" className={fieldClass} />
+          <AddressAutocomplete
+            value={form.address}
+            onChange={(v) => update('address', v)}
+            city={form.city}
+            onCityChange={(c) => update('city', c)}
+            className={fieldClass}
+          />
         </div>
         <div>
           <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Ciudad</label>
