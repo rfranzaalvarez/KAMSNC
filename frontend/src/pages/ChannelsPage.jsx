@@ -9,7 +9,7 @@ import ChannelClassification from '../components/ChannelClassification';
 import ClassificationSelector from '../components/ClassificationSelector';
 import CompanyAnalysis from '../components/CompanyAnalysis';
 import ContactHub from '../components/ContactHub';
-import AddressAutocomplete from '../components/AddressAutocomplete';
+import AddressFields from '../components/AddressFields';
 import { useChannelTypes } from '../hooks/useChannelTypes';
 import { validatePhone, validateEmail, validateCIF } from '../lib/validators';
 import {
@@ -203,6 +203,7 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
         google_rating: ch?.google_rating ?? '',
         address: ch?.address || '',
         city: ch?.city || '',
+        province: ch?.province || '',
         notes: ch?.notes || '',
         status: ch?.status || 'prospect',
       });
@@ -233,6 +234,7 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
       google_rating: channel.google_rating ?? '',
       address: channel.address || '',
       city: channel.city || '',
+      province: channel.province || '',
       notes: channel.notes || '',
       status: channel.status || 'prospect',
     });
@@ -261,6 +263,7 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
           google_rating: editForm.google_rating ? parseFloat(editForm.google_rating) : null,
           address: editForm.address || null,
           city: editForm.city || null,
+          province: editForm.province || null,
           notes: editForm.notes || null,
           status: editForm.status,
         })
@@ -373,16 +376,7 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
                 <input type="url" value={editForm.website} onChange={(e) => updateField('website', e.target.value)}
                   placeholder="https://www.ejemplo.com" className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500" />
               </div>
-              <div>
-                <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Dirección</label>
-                <input type="text" value={editForm.address} onChange={(e) => updateField('address', e.target.value)}
-                  className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500" />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Ciudad</label>
-                <input type="text" value={editForm.city} onChange={(e) => updateField('city', e.target.value)}
-                  className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500" />
-              </div>
+              <AddressFields form={editForm} update={updateField} fieldClass="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500" />
               <div>
                 <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Notas</label>
                 <textarea value={editForm.notes} onChange={(e) => updateField('notes', e.target.value)}
@@ -435,7 +429,11 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
               {channel.address && (
                 <div className="flex items-center gap-2.5 text-sm">
                   <MapPin size={14} className="text-text-muted flex-shrink-0" />
-                  <span className="text-text-secondary">{channel.address}{channel.city ? `, ${channel.city}` : ''}</span>
+                  <span className="text-text-secondary">
+                    {channel.address}
+                    {channel.city ? `, ${channel.city}` : ''}
+                    {channel.province ? ` (${channel.province})` : ''}
+                  </span>
                 </div>
               )}
               {channel.phone && (
@@ -587,6 +585,7 @@ function NewChannelForm({ onBack, onSaved, types }) {
     google_rating: '',
     address: '',
     city: '',
+    province: '',
     notes: '',
   });
 
@@ -647,6 +646,7 @@ function NewChannelForm({ onBack, onSaved, types }) {
           google_rating: form.google_rating ? parseFloat(form.google_rating) : null,
           address: form.address || null,
           city: form.city || null,
+          province: form.province || null,
           notes: form.notes || null,
           assigned_to: user.id,
           status: 'prospect',
@@ -737,21 +737,7 @@ function NewChannelForm({ onBack, onSaved, types }) {
           <input type="url" value={form.website} onChange={(e) => update('website', e.target.value)}
             placeholder="https://www.ejemplo.com" className={fieldClass} />
         </div>
-        <div>
-          <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Dirección</label>
-          <AddressAutocomplete
-            value={form.address}
-            onChange={(v) => update('address', v)}
-            city={form.city}
-            onCityChange={(c) => update('city', c)}
-            className={fieldClass}
-          />
-        </div>
-        <div>
-          <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Ciudad</label>
-          <input type="text" value={form.city} onChange={(e) => update('city', e.target.value)}
-            placeholder="Madrid" className={fieldClass} />
-        </div>
+        <AddressFields form={form} update={update} fieldClass={fieldClass} />
         <div>
           <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Notas</label>
           <textarea value={form.notes} onChange={(e) => update('notes', e.target.value)}
