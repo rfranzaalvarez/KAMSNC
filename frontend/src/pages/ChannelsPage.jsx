@@ -7,6 +7,7 @@ import PreVisitBrief from '../components/PreVisitBrief';
 import ChannelNotes from '../components/ChannelNotes';
 import ChannelClassification from '../components/ChannelClassification';
 import ClassificationSelector from '../components/ClassificationSelector';
+import CompanyAnalysis from '../components/CompanyAnalysis';
 import { useChannelTypes } from '../hooks/useChannelTypes';
 import {
   Search, Plus, Building2, Phone, Mail, MapPin,
@@ -194,6 +195,9 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
         contact_name: ch?.contact_name || '',
         phone: ch?.phone || '',
         email: ch?.email || '',
+        cif: ch?.cif || '',
+        website: ch?.website || '',
+        google_rating: ch?.google_rating ?? '',
         address: ch?.address || '',
         city: ch?.city || '',
         notes: ch?.notes || '',
@@ -221,6 +225,9 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
       contact_name: channel.contact_name || '',
       phone: channel.phone || '',
       email: channel.email || '',
+      cif: channel.cif || '',
+      website: channel.website || '',
+      google_rating: channel.google_rating ?? '',
       address: channel.address || '',
       city: channel.city || '',
       notes: channel.notes || '',
@@ -246,6 +253,9 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
           contact_name: editForm.contact_name || null,
           phone: editForm.phone || null,
           email: editForm.email || null,
+          cif: editForm.cif || null,
+          website: editForm.website || null,
+          google_rating: editForm.google_rating ? parseFloat(editForm.google_rating) : null,
           address: editForm.address || null,
           city: editForm.city || null,
           notes: editForm.notes || null,
@@ -343,6 +353,23 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
                     className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500" />
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">CIF</label>
+                  <input type="text" value={editForm.cif} onChange={(e) => updateField('cif', e.target.value)}
+                    placeholder="B12345678" className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Valoración Google</label>
+                  <input type="number" value={editForm.google_rating} onChange={(e) => updateField('google_rating', e.target.value)}
+                    placeholder="4.5" min="0" max="5" step="0.1" className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Página web</label>
+                <input type="url" value={editForm.website} onChange={(e) => updateField('website', e.target.value)}
+                  placeholder="https://www.ejemplo.com" className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500" />
+              </div>
               <div>
                 <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Dirección</label>
                 <input type="text" value={editForm.address} onChange={(e) => updateField('address', e.target.value)}
@@ -420,6 +447,24 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
                   <span className="text-brand-400">{channel.email}</span>
                 </a>
               )}
+              {channel.cif && (
+                <div className="flex items-center gap-2.5 text-sm">
+                  <span className="text-text-muted flex-shrink-0 text-xs font-bold">CIF</span>
+                  <span className="text-text-secondary">{channel.cif}</span>
+                </div>
+              )}
+              {channel.website && (
+                <a href={channel.website.startsWith('http') ? channel.website : `https://${channel.website}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2.5 text-sm">
+                  <span className="text-text-muted flex-shrink-0 text-xs">🌐</span>
+                  <span className="text-brand-400">{channel.website}</span>
+                </a>
+              )}
+              {channel.google_rating != null && (
+                <div className="flex items-center gap-2.5 text-sm">
+                  <span className="text-text-muted flex-shrink-0 text-xs">⭐</span>
+                  <span className="text-text-secondary">{channel.google_rating} / 5</span>
+                </div>
+              )}
             </div>
 
             {channel.notes && (
@@ -435,6 +480,11 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
       {/* Clasificación del canal */}
       <div className="mb-4">
         <ChannelClassification channelId={channelId} />
+      </div>
+
+      {/* Análisis de empresa */}
+      <div className="mb-4">
+        <CompanyAnalysis channel={channel} onChannelUpdate={setChannel} />
       </div>
 
       {/* Brief pre-visita con IA */}
@@ -523,6 +573,9 @@ function NewChannelForm({ onBack, onSaved, types }) {
     contact_name: '',
     phone: '',
     email: '',
+    cif: '',
+    website: '',
+    google_rating: '',
     address: '',
     city: '',
     notes: '',
@@ -551,6 +604,9 @@ function NewChannelForm({ onBack, onSaved, types }) {
           contact_name: form.contact_name || null,
           phone: form.phone || null,
           email: form.email || null,
+          cif: form.cif || null,
+          website: form.website || null,
+          google_rating: form.google_rating ? parseFloat(form.google_rating) : null,
           address: form.address || null,
           city: form.city || null,
           notes: form.notes || null,
@@ -622,6 +678,23 @@ function NewChannelForm({ onBack, onSaved, types }) {
             <input type="email" value={form.email} onChange={(e) => update('email', e.target.value)}
               placeholder="contacto@empresa.com" className={fieldClass} />
           </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">CIF</label>
+            <input type="text" value={form.cif} onChange={(e) => update('cif', e.target.value)}
+              placeholder="B12345678" className={fieldClass} />
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Valoración Google</label>
+            <input type="number" value={form.google_rating} onChange={(e) => update('google_rating', e.target.value)}
+              placeholder="4.5" min="0" max="5" step="0.1" className={fieldClass} />
+          </div>
+        </div>
+        <div>
+          <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Página web</label>
+          <input type="url" value={form.website} onChange={(e) => update('website', e.target.value)}
+            placeholder="https://www.ejemplo.com" className={fieldClass} />
         </div>
         <div>
           <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Dirección</label>
