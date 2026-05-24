@@ -585,200 +585,186 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
   );
 }
 
-// ============ FORMULARIO NUEVO CANAL ============
+// ============ FORMULARIO NUEVO CANAL (WIZARD 3 PASOS) ============
 function NewChannelForm({ onBack, onSaved, types }) {
   const { user } = useAuthContext();
+  const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [classificationError, setClassificationError] = useState('');
   const [classifications, setClassifications] = useState([]);
   const [fieldErrors, setFieldErrors] = useState({});
   const [form, setForm] = useState({
-    name: '',
-    contact_name: '',
-    phone: '',
-    email: '',
-    cif: '',
-    website: '',
-    google_rating: '',
-    address: '',
-    city: '',
-    province: '',
-    notes: '',
+    name: '', contact_name: '', phone: '', email: '',
+    cif: '', website: '', google_rating: '',
+    address: '', city: '', province: '', notes: '',
   });
 
   const update = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
-    // Validar en tiempo real
-    if (field === 'phone') {
-      const v = validatePhone(value);
-      setFieldErrors(prev => ({ ...prev, phone: v.valid ? '' : v.error }));
-    }
-    if (field === 'email') {
-      const v = validateEmail(value);
-      setFieldErrors(prev => ({ ...prev, email: v.valid ? '' : v.error }));
-    }
-    if (field === 'cif') {
-      const v = validateCIF(value);
-      setFieldErrors(prev => ({ ...prev, cif: v.valid ? '' : v.error }));
-    }
+    if (field === 'phone') { const v = validatePhone(value); setFieldErrors(prev => ({ ...prev, phone: v.valid ? '' : v.error })); }
+    if (field === 'email') { const v = validateEmail(value); setFieldErrors(prev => ({ ...prev, email: v.valid ? '' : v.error })); }
+    if (field === 'cif') { const v = validateCIF(value); setFieldErrors(prev => ({ ...prev, cif: v.valid ? '' : v.error })); }
   };
 
-  async function handleSave() {
-    // Validar todos los campos
-    const phoneV = validatePhone(form.phone);
-    const emailV = validateEmail(form.email);
-    const cifV = validateCIF(form.cif);
-    const errors = {};
-    if (!phoneV.valid) errors.phone = phoneV.error;
-    if (!emailV.valid) errors.email = emailV.error;
-    if (!cifV.valid) errors.cif = cifV.error;
-    setFieldErrors(errors);
-
-    if (Object.keys(errors).length > 0) {
-      setError('Corrige los errores en los campos marcados');
-      return;
-    }
-    if (!form.name.trim()) {
-      setError('El nombre del canal es obligatorio');
-      return;
-    }
-    if (classifications.length === 0) {
-      setClassificationError('Selecciona al menos una clasificación');
-      return;
-    }
-    setSaving(true);
+  function nextStep() {
     setError('');
-    setClassificationError('');
-    try {
-      // 1. Crear el canal
-      const { data, error: insertError } = await supabase
-        .from('channels')
-        .insert({
-          name: form.name.trim(),
-          contact_name: form.contact_name || null,
-          phone: form.phone || null,
-          email: form.email || null,
-          cif: form.cif || null,
-          website: form.website || null,
-          google_rating: form.google_rating && form.google_rating !== 'no_tiene' ? parseFloat(form.google_rating) : null,
-          address: form.address || null,
-          city: form.city || null,
-          province: form.province || null,
-          notes: form.notes || null,
-          assigned_to: user.id,
-          status: 'prospect',
-          pipeline_stage: 'lead',
-        })
-        .select()
-        .single();
-      if (insertError) throw insertError;
-
-      // 2. Guardar clasificaciones
-      const classInserts = classifications.map(c => ({
-        channel_id: data.id,
-        classification_id: c.classification_id,
-        custom_text: c.custom_text || null,
-      }));
-      const { error: classError } = await supabase
-        .from('channel_classifications')
-        .insert(classInserts);
-      if (classError) console.error('Error guardando clasificaciones:', classError);
-
-      onSaved(data.id);
-    } catch (err) {
-      setError(err.message || 'Error al guardar');
-    } finally {
-      setSaving(false);
+    if (step === 1) {
+      if (!form.name.trim()) { setError('El nombre del canal es obligatorio'); return; }
+      const phoneV = validatePhone(form.phone);
+      const emailV = validateEmail(form.email);
+      const cifV = validateCIF(form.cif);
+      const errors = {};
+      if (!phoneV.valid) errors.phone = phoneV.error;
+      if (!emailV.valid) errors.email = emailV.error;
+      if (!cifV.valid) errors.cif = cifV.error;
+      setFieldErrors(errors);
+      if (Object.keys(errors).length > 0) { setError('Corrige los errores marcados'); return; }
     }
+    if (step === 2) {
+      if (classifications.length === 0) { setClassificationError('Selecciona al menos una clasificación'); return; }
+    }
+    setStep(s => s + 1);
+  }
+
+  function prevStep() { setError(''); setStep(s => s - 1); }
+
+  async function handleSave() {
+    setSaving(true); setError('');
+    try {
+      const { data, error: insertError } = await supabase.from('channels').insert({
+        name: form.name.trim(), contact_name: form.contact_name || null,
+        phone: form.phone || null, email: form.email || null,
+        cif: form.cif || null, website: form.website || null,
+        google_rating: form.google_rating && form.google_rating !== 'no_tiene' ? parseFloat(form.google_rating) : null,
+        address: form.address || null, city: form.city || null, province: form.province || null,
+        notes: form.notes || null, assigned_to: user.id, status: 'prospect', pipeline_stage: 'lead',
+      }).select().single();
+      if (insertError) throw insertError;
+      const classInserts = classifications.map(c => ({ channel_id: data.id, classification_id: c.classification_id, custom_text: c.custom_text || null }));
+      await supabase.from('channel_classifications').insert(classInserts);
+      onSaved(data.id);
+    } catch (err) { setError(err.message || 'Error al guardar'); }
+    finally { setSaving(false); }
   }
 
   const fieldClass = "w-full px-3 py-2.5 bg-surface-0 border border-surface-3 rounded-xl text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-500 transition-colors";
+  const STEPS = [{ num: 1, label: 'Datos básicos' }, { num: 2, label: 'Clasificación' }, { num: 3, label: 'Ubicación y notas' }];
 
   return (
     <div>
-      <button onClick={onBack} className="flex items-center gap-1 text-sm text-brand-400 font-semibold mb-4">
-        ← Cancelar
-      </button>
-      <h1 className="text-xl font-extrabold tracking-tight mb-4">Nuevo canal</h1>
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 mb-4 text-sm text-red-400">{error}</div>
-      )}
-      <div className="space-y-3">
-        <div>
-          <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Nombre *</label>
-          <input type="text" value={form.name} onChange={(e) => update('name', e.target.value)}
-            placeholder="Nombre del canal o empresa" className={fieldClass} />
-        </div>
+      <button onClick={onBack} className="flex items-center gap-1 text-sm text-brand-400 font-semibold mb-4">← Cancelar</button>
 
-        {/* Clasificación obligatoria */}
-        <ClassificationSelector
-          value={classifications}
-          onChange={(v) => { setClassifications(v); setClassificationError(''); }}
-          error={classificationError}
-        />
-
-        <div>
-          <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Persona de contacto</label>
-          <input type="text" value={form.contact_name} onChange={(e) => update('contact_name', e.target.value)}
-            placeholder="Nombre del contacto principal" className={fieldClass} />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Teléfono</label>
-            <input type="tel" value={form.phone} onChange={(e) => update('phone', e.target.value)}
-              placeholder="+34 612 345 678" className={`${fieldClass} ${fieldErrors.phone ? 'border-red-400 focus:border-red-500' : ''}`} />
-            {fieldErrors.phone && <p className="text-[10px] text-red-500 mt-0.5">{fieldErrors.phone}</p>}
+      {/* Stepper */}
+      <div className="flex items-center justify-center gap-0 mb-5">
+        {STEPS.map((s, i) => (
+          <div key={s.num} className="flex items-center">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+              step === s.num ? 'bg-brand-500 text-white' : step > s.num ? 'bg-brand-500/15 text-brand-500' : 'bg-surface-2 text-text-muted border border-surface-3'
+            }`}>{step > s.num ? <Check size={14} /> : s.num}</div>
+            {i < STEPS.length - 1 && <div className={`w-8 sm:w-12 h-0.5 mx-1 rounded-full transition-colors ${step > s.num ? 'bg-brand-500/30' : 'bg-surface-3'}`} />}
           </div>
-          <div>
-            <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Email</label>
-            <input type="email" value={form.email} onChange={(e) => update('email', e.target.value)}
-              placeholder="contacto@empresa.com" className={`${fieldClass} ${fieldErrors.email ? 'border-red-400 focus:border-red-500' : ''}`} />
-            {fieldErrors.email && <p className="text-[10px] text-red-500 mt-0.5">{fieldErrors.email}</p>}
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">CIF</label>
-            <input type="text" value={form.cif} onChange={(e) => update('cif', e.target.value.toUpperCase())}
-              placeholder="B12345678" className={`${fieldClass} ${fieldErrors.cif ? 'border-red-400 focus:border-red-500' : ''}`} />
-            {fieldErrors.cif && <p className="text-[10px] text-red-500 mt-0.5">{fieldErrors.cif}</p>}
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Valoración Google</label>
-            <select value={form.google_rating} onChange={(e) => update('google_rating', e.target.value)}
-              className={fieldClass}>
-              <option value="">Seleccionar...</option>
-              <option value="no_tiene">No tiene</option>
-              <option value="5">⭐ 5.0</option>
-              <option value="4.5">⭐ 4.5</option>
-              <option value="4">⭐ 4.0</option>
-              <option value="3.5">⭐ 3.5</option>
-              <option value="3">⭐ 3.0</option>
-              <option value="2.5">⭐ 2.5</option>
-              <option value="2">⭐ 2.0</option>
-              <option value="1.5">⭐ 1.5</option>
-              <option value="1">⭐ 1.0</option>
-              <option value="0.5">⭐ 0.5</option>
-            </select>
-          </div>
-        </div>
-        <div>
-          <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Página web</label>
-          <input type="url" value={form.website} onChange={(e) => update('website', e.target.value)}
-            placeholder="https://www.ejemplo.com" className={fieldClass} />
-        </div>
-        <AddressFields form={form} update={update} fieldClass={fieldClass} />
-        <div>
-          <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Notas</label>
-          <textarea value={form.notes} onChange={(e) => update('notes', e.target.value)}
-            placeholder="Notas sobre el canal..." rows={3} className={`${fieldClass} resize-none`} />
-        </div>
-        <button onClick={handleSave} disabled={saving}
-          className="w-full py-3 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 mt-2">
-          {saving ? <><Loader2 size={16} className="animate-spin" /> Guardando...</> : <><Check size={16} /> Guardar canal</>}
-        </button>
+        ))}
       </div>
+      <div className="text-center mb-5">
+        <h1 className="text-lg font-extrabold tracking-tight">{STEPS[step - 1].label}</h1>
+        <p className="text-xs text-text-muted mt-0.5">Paso {step} de 3</p>
+      </div>
+
+      {error && <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 mb-4 text-sm text-red-400">{error}</div>}
+
+      {/* PASO 1: Datos básicos */}
+      {step === 1 && (
+        <div className="space-y-3">
+          <div>
+            <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Nombre del canal *</label>
+            <input type="text" value={form.name} onChange={(e) => update('name', e.target.value)} placeholder="Nombre del canal o empresa" className={fieldClass} autoFocus />
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Persona de contacto</label>
+            <input type="text" value={form.contact_name} onChange={(e) => update('contact_name', e.target.value)} placeholder="Nombre del contacto principal" className={fieldClass} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Teléfono</label>
+              <input type="tel" value={form.phone} onChange={(e) => update('phone', e.target.value)} placeholder="+34 612 345 678" className={`${fieldClass} ${fieldErrors.phone ? 'border-red-400' : ''}`} />
+              {fieldErrors.phone && <p className="text-[10px] text-red-500 mt-0.5">{fieldErrors.phone}</p>}
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Email</label>
+              <input type="email" value={form.email} onChange={(e) => update('email', e.target.value)} placeholder="contacto@empresa.com" className={`${fieldClass} ${fieldErrors.email ? 'border-red-400' : ''}`} />
+              {fieldErrors.email && <p className="text-[10px] text-red-500 mt-0.5">{fieldErrors.email}</p>}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">CIF</label>
+              <input type="text" value={form.cif} onChange={(e) => update('cif', e.target.value.toUpperCase())} placeholder="B12345678" className={`${fieldClass} ${fieldErrors.cif ? 'border-red-400' : ''}`} />
+              {fieldErrors.cif && <p className="text-[10px] text-red-500 mt-0.5">{fieldErrors.cif}</p>}
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Valoración Google</label>
+              <select value={form.google_rating} onChange={(e) => update('google_rating', e.target.value)} className={fieldClass}>
+                <option value="">Seleccionar...</option>
+                <option value="no_tiene">No tiene</option>
+                <option value="5">⭐ 5.0</option><option value="4.5">⭐ 4.5</option><option value="4">⭐ 4.0</option>
+                <option value="3.5">⭐ 3.5</option><option value="3">⭐ 3.0</option><option value="2.5">⭐ 2.5</option>
+                <option value="2">⭐ 2.0</option><option value="1.5">⭐ 1.5</option><option value="1">⭐ 1.0</option>
+                <option value="0.5">⭐ 0.5</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Página web</label>
+            <input type="url" value={form.website} onChange={(e) => update('website', e.target.value)} placeholder="https://www.ejemplo.com" className={fieldClass} />
+          </div>
+          <button onClick={nextStep} className="w-full py-3 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl transition-colors mt-2">Siguiente →</button>
+        </div>
+      )}
+
+      {/* PASO 2: Clasificación */}
+      {step === 2 && (
+        <div className="space-y-3">
+          <ClassificationSelector value={classifications} onChange={(v) => { setClassifications(v); setClassificationError(''); }} error={classificationError} />
+          <div className="flex gap-2 mt-4">
+            <button onClick={prevStep} className="flex-1 py-3 border border-surface-3 text-text-secondary font-semibold rounded-xl text-sm hover:bg-surface-2 transition-colors">← Atrás</button>
+            <button onClick={nextStep} className="flex-[2] py-3 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl transition-colors">Siguiente →</button>
+          </div>
+        </div>
+      )}
+
+      {/* PASO 3: Ubicación y notas */}
+      {step === 3 && (
+        <div className="space-y-3">
+          <AddressFields form={form} update={update} fieldClass={fieldClass} />
+          <div>
+            <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Notas</label>
+            <textarea value={form.notes} onChange={(e) => update('notes', e.target.value)} placeholder="Notas sobre el canal..." rows={3} className={`${fieldClass} resize-none`} />
+          </div>
+          <div className="bg-surface-1 border border-surface-3 rounded-xl p-3 mt-2">
+            <div className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-2">Resumen</div>
+            <div className="space-y-1 text-xs text-text-secondary">
+              <p><span className="font-semibold text-text-primary">{form.name}</span></p>
+              {form.contact_name && <p>👤 {form.contact_name} {form.phone ? `· ${form.phone}` : ''}</p>}
+              {form.cif && <p>CIF: {form.cif}</p>}
+              {classifications.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {classifications.map((c, i) => (
+                    <span key={i} className="px-2 py-0.5 bg-brand-500/10 text-brand-600 rounded text-[10px] font-semibold">{c._label}{c.custom_text ? `: ${c.custom_text}` : ''}</span>
+                  ))}
+                </div>
+              )}
+              {form.city && <p>📍 {form.city}{form.province ? ` (${form.province})` : ''}{form.address ? ` · ${form.address}` : ''}</p>}
+            </div>
+          </div>
+          <div className="flex gap-2 mt-2">
+            <button onClick={prevStep} className="flex-1 py-3 border border-surface-3 text-text-secondary font-semibold rounded-xl text-sm hover:bg-surface-2 transition-colors">← Atrás</button>
+            <button onClick={handleSave} disabled={saving} className="flex-[2] py-3 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2">
+              {saving ? <><Loader2 size={16} className="animate-spin" /> Guardando...</> : <><Check size={16} /> Guardar canal</>}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
