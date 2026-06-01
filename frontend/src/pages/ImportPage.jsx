@@ -12,20 +12,15 @@ const CHANNEL_FIELDS = [
   { key: 'contact_name', label: 'Persona de contacto', required: false },
   { key: 'phone', label: 'Teléfono', required: false },
   { key: 'email', label: 'Email', required: false },
-  { key: 'address', label: 'Dirección', required: false },
-  { key: 'city', label: 'Ciudad', required: false },
-  { key: 'postal_code', label: 'Código postal', required: false },
-  { key: 'channel_type', label: 'Tipo de canal', required: false },
+  { key: 'cif', label: 'CIF', required: false },
+  { key: 'website', label: 'Página web', required: false },
+  { key: 'google_rating', label: 'Valoración Google', required: false },
+  { key: 'address', label: 'Dirección / Calle', required: false },
+  { key: 'city', label: 'Localidad', required: false },
+  { key: 'province', label: 'Provincia', required: false },
   { key: 'status', label: 'Estado', required: false },
   { key: 'notes', label: 'Notas', required: false },
 ];
-
-const TYPE_MAP = {
-  'distribuidor': 'distributor', 'distributor': 'distributor',
-  'instalador': 'installer', 'installer': 'installer',
-  'revendedor': 'reseller', 'reseller': 'reseller',
-  'comercializadora': 'commercial', 'commercial': 'commercial',
-};
 
 const STATUS_MAP = {
   'prospecto': 'prospect', 'prospect': 'prospect',
@@ -38,12 +33,8 @@ const STATUS_MAP = {
 async function parseFile(file) {
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, { type: 'array' });
-
-  // Usar la primera hoja
   const sheetName = workbook.SheetNames[0];
   const sheet = workbook.Sheets[sheetName];
-
-  // Convertir a JSON (primera fila = cabeceras)
   const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: '' });
 
   if (jsonData.length === 0) return { headers: [], rows: [], sheetName };
@@ -51,9 +42,7 @@ async function parseFile(file) {
   const headers = Object.keys(jsonData[0]);
   const rows = jsonData.map(row => {
     const cleaned = {};
-    headers.forEach(h => {
-      cleaned[h] = String(row[h] ?? '').trim();
-    });
+    headers.forEach(h => { cleaned[h] = String(row[h] ?? '').trim(); });
     return cleaned;
   }).filter(row => Object.values(row).some(v => v));
 
@@ -70,24 +59,19 @@ function FileUploadStep({ onFileParsed }) {
     if (!file) return;
     setError('');
     setLoading(true);
-
     try {
       const ext = file.name.split('.').pop()?.toLowerCase();
-
       if (!['xlsx', 'xls', 'csv', 'tsv', 'txt'].includes(ext)) {
         setError('Formato no soportado. Usa Excel (.xlsx) o CSV.');
         setLoading(false);
         return;
       }
-
       const result = await parseFile(file);
-
       if (result.rows.length === 0) {
         setError('El archivo no contiene datos. Asegúrate de que la primera fila tiene las cabeceras.');
         setLoading(false);
         return;
       }
-
       onFileParsed({ fileName: file.name, ...result });
     } catch (err) {
       console.error('Error leyendo archivo:', err);
@@ -105,17 +89,16 @@ function FileUploadStep({ onFileParsed }) {
 
   const downloadTemplate = () => {
     const data = [
-      { Nombre: 'Distribuciones García', Contacto: 'Antonio García', Teléfono: '+34 612 345 678', Email: 'antonio@garcia.es', Dirección: 'C/ Gran Vía 42', Ciudad: 'Madrid', Tipo: 'Distribuidor', Estado: 'Activo', Notas: 'Cliente desde 2020' },
-      { Nombre: 'Electro Norte S.L.', Contacto: 'Laura Martín', Teléfono: '+34 623 456 789', Email: 'laura@electronorte.com', Dirección: 'Av. de América 15', Ciudad: 'Madrid', Tipo: 'Instalador', Estado: 'Prospecto', Notas: 'Contactar en junio' },
-      { Nombre: 'Canal Sur Energía', Contacto: 'Pedro López', Teléfono: '+34 634 567 890', Email: 'pedro@canalsur.es', Dirección: 'C/ Alcalá 200', Ciudad: 'Madrid', Tipo: 'Comercializadora', Estado: 'En desarrollo', Notas: '' },
+      { Nombre: 'Distribuciones García', Contacto: 'Antonio García', Teléfono: '+34 612 345 678', Email: 'antonio@garcia.es', CIF: 'B12345678', Web: 'www.garcia.es', 'Valoración Google': '4.5', Calle: 'C/ Gran Vía 42', Localidad: 'Madrid', Provincia: 'Madrid', Estado: 'Activo', Notas: 'Cliente desde 2020' },
+      { Nombre: 'Electro Norte S.L.', Contacto: 'Laura Martín', Teléfono: '+34 623 456 789', Email: 'laura@electronorte.com', CIF: 'A87654321', Web: 'www.electronorte.com', 'Valoración Google': '3.8', Calle: 'Av. de América 15', Localidad: 'Madrid', Provincia: 'Madrid', Estado: 'Prospecto', Notas: 'Contactar en junio' },
+      { Nombre: 'Canal Sur Energía', Contacto: 'Pedro López', Teléfono: '+34 634 567 890', Email: 'pedro@canalsur.es', CIF: 'B11223344', Web: '', 'Valoración Google': '', Calle: 'C/ Alcalá 200', Localidad: 'Sevilla', Provincia: 'Sevilla', Estado: 'En desarrollo', Notas: '' },
     ];
 
     const ws = XLSX.utils.json_to_sheet(data);
-
-    // Ajustar anchos de columna
     ws['!cols'] = [
-      { wch: 25 }, { wch: 20 }, { wch: 18 }, { wch: 25 },
-      { wch: 25 }, { wch: 15 }, { wch: 18 }, { wch: 15 }, { wch: 25 },
+      { wch: 25 }, { wch: 20 }, { wch: 18 }, { wch: 25 }, { wch: 12 },
+      { wch: 22 }, { wch: 18 }, { wch: 25 }, { wch: 15 }, { wch: 15 },
+      { wch: 15 }, { wch: 25 },
     ];
 
     const wb = XLSX.utils.book_new();
@@ -137,7 +120,6 @@ function FileUploadStep({ onFileParsed }) {
         </button>
       </div>
 
-      {/* Drop zone */}
       <div
         onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
         onDragLeave={() => setDragging(false)}
@@ -154,20 +136,12 @@ function FileUploadStep({ onFileParsed }) {
         ) : (
           <>
             <FileSpreadsheet size={36} className="mx-auto mb-3 text-green-600" />
-            <p className="text-sm font-semibold text-text-primary mb-1">
-              Arrastra tu archivo Excel aquí
-            </p>
+            <p className="text-sm font-semibold text-text-primary mb-1">Arrastra tu archivo Excel aquí</p>
             <p className="text-xs text-text-muted mb-4">Formatos: .xlsx, .xls, .csv</p>
-
             <label className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-brand-500 hover:bg-brand-600 text-white text-sm font-bold rounded-xl cursor-pointer transition-colors">
               <Upload size={14} />
               Seleccionar archivo
-              <input
-                type="file"
-                accept=".xlsx,.xls,.csv,.tsv,.txt"
-                onChange={(e) => handleFile(e.target.files?.[0])}
-                className="hidden"
-              />
+              <input type="file" accept=".xlsx,.xls,.csv,.tsv,.txt" onChange={(e) => handleFile(e.target.files?.[0])} className="hidden" />
             </label>
           </>
         )}
@@ -175,21 +149,20 @@ function FileUploadStep({ onFileParsed }) {
 
       {error && (
         <div className="mt-3 flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-600">
-          <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />
-          {error}
+          <AlertCircle size={16} className="flex-shrink-0 mt-0.5" />{error}
         </div>
       )}
 
-      {/* Instrucciones */}
       <div className="mt-5 bg-surface-1 border border-surface-3 rounded-xl p-4">
         <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">Cómo preparar tu Excel</h3>
         <div className="text-xs text-text-muted space-y-1.5">
           <p>1. Descarga la <strong>plantilla Excel</strong> con el botón de arriba</p>
           <p>2. Rellena los datos de tus canales (uno por fila)</p>
           <p>3. La columna <strong>Nombre</strong> es obligatoria, el resto son opcionales</p>
-          <p>4. Tipos válidos: <span className="text-text-secondary">Distribuidor, Instalador, Revendedor, Comercializadora</span></p>
+          <p>4. Campos disponibles: <span className="text-text-secondary">Nombre, Contacto, Teléfono, Email, CIF, Web, Valoración Google, Calle, Localidad, Provincia, Estado, Notas</span></p>
           <p>5. Estados válidos: <span className="text-text-secondary">Prospecto, En desarrollo, Activo, Inactivo</span></p>
           <p>6. Sube el archivo y revisa la previsualización antes de importar</p>
+          <p>7. La clasificación del canal (Energia/Solar/CAEs/Otros) se asigna después desde la ficha</p>
         </div>
       </div>
     </div>
@@ -210,10 +183,12 @@ function MappingStep({ fileData, onMapped, onBack }) {
       else if (n.includes('contacto') || n.includes('contact') || n.includes('persona')) autoMap[h] = 'contact_name';
       else if (n.includes('telefono') || n.includes('phone') || n.includes('tel') || n.includes('movil')) autoMap[h] = 'phone';
       else if (n.includes('email') || n.includes('correo') || n.includes('mail')) autoMap[h] = 'email';
+      else if (n === 'cif' || n === 'nif' || n === 'nie' || n.includes('fiscal')) autoMap[h] = 'cif';
+      else if (n.includes('web') || n.includes('pagina') || n.includes('url') || n.includes('sitio')) autoMap[h] = 'website';
+      else if (n.includes('google') || n.includes('valoracion') || n.includes('rating') || n.includes('puntuacion')) autoMap[h] = 'google_rating';
       else if (n.includes('direccion') || n.includes('address') || n.includes('calle') || n.includes('domicilio')) autoMap[h] = 'address';
-      else if (n.includes('ciudad') || n.includes('city') || n.includes('poblacion') || n.includes('localidad') || n.includes('municipio')) autoMap[h] = 'city';
-      else if (n.includes('postal') || n.includes('cp') || n.includes('zip') || n.includes('codigo')) autoMap[h] = 'postal_code';
-      else if (n.includes('tipo') || n.includes('type') || n.includes('categoria') || n.includes('segmento')) autoMap[h] = 'channel_type';
+      else if (n.includes('localidad') || n.includes('ciudad') || n.includes('city') || n.includes('poblacion') || n.includes('municipio')) autoMap[h] = 'city';
+      else if (n.includes('provincia') || n.includes('province') || n.includes('region')) autoMap[h] = 'province';
       else if (n.includes('estado') || n.includes('status') || n.includes('situacion')) autoMap[h] = 'status';
       else if (n.includes('nota') || n.includes('note') || n.includes('observ') || n.includes('comentario') || n.includes('descripcion')) autoMap[h] = 'notes';
     });
@@ -251,13 +226,12 @@ function MappingStep({ fileData, onMapped, onBack }) {
         <div className="grid grid-cols-[1fr,auto,1fr] items-center gap-2 p-3 bg-surface-1 border-b border-surface-3">
           <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Columna Excel</span>
           <span />
-          <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Campo KAMApp</span>
+          <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider">Campo CRM</span>
         </div>
 
         {headers.map(header => {
           const mapped = mapping[header] || '';
           const sampleValues = rows.slice(0, 3).map(r => r[header]).filter(Boolean).join(', ');
-
           return (
             <div key={header} className="grid grid-cols-[1fr,auto,1fr] items-center gap-2 p-3 border-b border-surface-3 last:border-0">
               <div>
@@ -267,13 +241,10 @@ function MappingStep({ fileData, onMapped, onBack }) {
                 </div>
               </div>
               <ArrowRight size={14} className="text-text-muted" />
-              <select
-                value={mapped}
-                onChange={(e) => setMap(header, e.target.value)}
+              <select value={mapped} onChange={(e) => setMap(header, e.target.value)}
                 className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:border-brand-500 ${
                   mapped ? 'bg-brand-50 border-brand-200 text-brand-700 font-semibold' : 'bg-white border-surface-3 text-text-muted'
-                }`}
-              >
+                }`}>
                 <option value="">— No importar —</option>
                 {CHANNEL_FIELDS.map(f => {
                   const usedBy = Object.entries(mapping).find(([k, v]) => v === f.key && k !== header);
@@ -296,11 +267,8 @@ function MappingStep({ fileData, onMapped, onBack }) {
         </div>
       )}
 
-      <button
-        onClick={() => onMapped(mapping)}
-        disabled={!nameIsMapped}
-        className="w-full py-3 bg-brand-500 hover:bg-brand-600 disabled:opacity-40 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
-      >
+      <button onClick={() => onMapped(mapping)} disabled={!nameIsMapped}
+        className="w-full py-3 bg-brand-500 hover:bg-brand-600 disabled:opacity-40 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2">
         <Eye size={16} />
         Previsualizar importación ({rows.length} canales)
       </button>
@@ -310,15 +278,17 @@ function MappingStep({ fileData, onMapped, onBack }) {
 
 // ============ STEP 3: PREVIEW & IMPORT ============
 function PreviewStep({ rows, mapping, onImport, onBack, importing, result }) {
-  const TYPE_LABELS = { distributor: 'Distribuidor', installer: 'Instalador', reseller: 'Revendedor', commercial: 'Comercializadora', other: 'Otro' };
   const STATUS_LABELS = { prospect: 'Prospecto', developing: 'En desarrollo', active: 'Activo', inactive: 'Inactivo' };
 
   const mappedRows = rows.map(row => {
     const mapped = {};
     Object.entries(mapping).forEach(([excelCol, field]) => {
       let value = row[excelCol]?.trim() || '';
-      if (field === 'channel_type') value = TYPE_MAP[value.toLowerCase()] || 'other';
-      else if (field === 'status') value = STATUS_MAP[value.toLowerCase()] || 'prospect';
+      if (field === 'status') value = STATUS_MAP[value.toLowerCase()] || 'prospect';
+      if (field === 'google_rating') {
+        if (value && !isNaN(parseFloat(value))) value = parseFloat(value);
+        else value = null;
+      }
       mapped[field] = value;
     });
     return mapped;
@@ -334,9 +304,12 @@ function PreviewStep({ rows, mapping, onImport, onBack, importing, result }) {
           <Check size={32} className="text-green-600" />
         </div>
         <h2 className="text-xl font-extrabold text-text-primary mb-1">Importación completada</h2>
-        <p className="text-sm text-text-secondary mb-6">
+        <p className="text-sm text-text-secondary mb-2">
           {result.success} canales importados correctamente
           {result.errors > 0 && ` · ${result.errors} con errores`}
+        </p>
+        <p className="text-xs text-text-muted mb-6">
+          Recuerda asignar la clasificación (Energia/Solar/CAEs) desde la ficha de cada canal
         </p>
         <button onClick={() => window.location.href = '/channels'}
           className="px-6 py-2.5 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl transition-colors">
@@ -367,8 +340,8 @@ function PreviewStep({ rows, mapping, onImport, onBack, importing, result }) {
               <th className="text-left p-2.5 text-[10px] font-bold text-text-muted uppercase tracking-wider">Nombre</th>
               <th className="text-left p-2.5 text-[10px] font-bold text-text-muted uppercase tracking-wider">Contacto</th>
               <th className="text-left p-2.5 text-[10px] font-bold text-text-muted uppercase tracking-wider">Teléfono</th>
-              <th className="text-left p-2.5 text-[10px] font-bold text-text-muted uppercase tracking-wider">Tipo</th>
-              <th className="text-left p-2.5 text-[10px] font-bold text-text-muted uppercase tracking-wider">Ciudad</th>
+              <th className="text-left p-2.5 text-[10px] font-bold text-text-muted uppercase tracking-wider">CIF</th>
+              <th className="text-left p-2.5 text-[10px] font-bold text-text-muted uppercase tracking-wider">Localidad</th>
               <th className="text-left p-2.5 text-[10px] font-bold text-text-muted uppercase tracking-wider">Estado</th>
             </tr>
           </thead>
@@ -379,11 +352,7 @@ function PreviewStep({ rows, mapping, onImport, onBack, importing, result }) {
                 <td className="p-2.5 font-semibold text-text-primary">{row.name}</td>
                 <td className="p-2.5 text-text-secondary text-xs">{row.contact_name || '-'}</td>
                 <td className="p-2.5 text-text-secondary text-xs">{row.phone || '-'}</td>
-                <td className="p-2.5">
-                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-surface-2 text-text-secondary">
-                    {TYPE_LABELS[row.channel_type] || 'Otro'}
-                  </span>
-                </td>
+                <td className="p-2.5 text-text-secondary text-xs">{row.cif || '-'}</td>
                 <td className="p-2.5 text-text-secondary text-xs">{row.city || '-'}</td>
                 <td className="p-2.5">
                   <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-surface-2 text-text-secondary">
@@ -408,21 +377,12 @@ function PreviewStep({ rows, mapping, onImport, onBack, importing, result }) {
         </div>
       )}
 
-      <button
-        onClick={() => onImport(validRows)}
-        disabled={importing || validRows.length === 0}
-        className="w-full py-3.5 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
-      >
+      <button onClick={() => onImport(validRows)} disabled={importing || validRows.length === 0}
+        className="w-full py-3.5 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2">
         {importing ? (
-          <>
-            <Loader2 size={16} className="animate-spin" />
-            Importando {validRows.length} canales...
-          </>
+          <><Loader2 size={16} className="animate-spin" /> Importando {validRows.length} canales...</>
         ) : (
-          <>
-            <Check size={16} />
-            Importar {validRows.length} canales
-          </>
+          <><Check size={16} /> Importar {validRows.length} canales</>
         )}
       </button>
     </div>
@@ -438,15 +398,8 @@ export default function ImportPage() {
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState(null);
 
-  function handleFileParsed(data) {
-    setFileData(data);
-    setStep('mapping');
-  }
-
-  function handleMapped(map) {
-    setMapping(map);
-    setStep('preview');
-  }
+  function handleFileParsed(data) { setFileData(data); setStep('mapping'); }
+  function handleMapped(map) { setMapping(map); setStep('preview'); }
 
   async function handleImport(rows) {
     setImporting(true);
@@ -460,10 +413,12 @@ export default function ImportPage() {
         contact_name: row.contact_name || null,
         phone: row.phone || null,
         email: row.email || null,
+        cif: row.cif || null,
+        website: row.website || null,
+        google_rating: row.google_rating != null && row.google_rating !== '' ? row.google_rating : null,
         address: row.address || null,
         city: row.city || null,
-        postal_code: row.postal_code || null,
-        channel_type: row.channel_type || 'other',
+        province: row.province || null,
         status: row.status || 'prospect',
         pipeline_stage: row.status === 'active' ? 'active' : 'lead',
         notes: row.notes || null,
@@ -486,7 +441,6 @@ export default function ImportPage() {
 
   return (
     <div>
-      {/* Progress bar */}
       {!result && (
         <div className="flex items-center gap-2 mb-5">
           {['upload', 'mapping', 'preview'].map((s, i) => {
@@ -497,12 +451,8 @@ export default function ImportPage() {
               <div key={s} className="flex items-center gap-2 flex-1">
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
                   isDone ? 'bg-green-500 text-white' : isActive ? 'bg-brand-500 text-white' : 'bg-surface-2 text-text-muted'
-                }`}>
-                  {isDone ? <Check size={12} /> : i + 1}
-                </div>
-                <span className={`text-[11px] font-semibold hidden sm:block ${isActive ? 'text-text-primary' : 'text-text-muted'}`}>
-                  {labels[i]}
-                </span>
+                }`}>{isDone ? <Check size={12} /> : i + 1}</div>
+                <span className={`text-[11px] font-semibold hidden sm:block ${isActive ? 'text-text-primary' : 'text-text-muted'}`}>{labels[i]}</span>
                 {i < 2 && <div className={`flex-1 h-0.5 rounded ${isDone ? 'bg-green-500' : 'bg-surface-3'}`} />}
               </div>
             );
