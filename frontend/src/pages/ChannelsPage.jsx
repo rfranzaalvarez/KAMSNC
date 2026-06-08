@@ -9,6 +9,7 @@ import ChannelClassification from '../components/ChannelClassification';
 import ClassificationSelector from '../components/ClassificationSelector';
 import CompanyAnalysis from '../components/CompanyAnalysis';
 import ContactHub from '../components/ContactHub';
+import VolumeEditor from '../components/VolumeEditor';
 import AddressFields from '../components/AddressFields';
 import { useChannelTypes } from '../hooks/useChannelTypes';
 import { validatePhone, validateEmail, validateCIF } from '../lib/validators';
@@ -544,6 +545,11 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
       {/* Notas del canal */}
       <div className="mb-4">
         <ChannelNotes channelId={channelId} />
+      </div>
+
+      {/* Volumen Anual Negociado */}
+      <div className="mb-4">
+        <VolumeEditor channel={channel} onChannelUpdate={setChannel} />
       </div>
 
       {/* Plan de cuenta */}
