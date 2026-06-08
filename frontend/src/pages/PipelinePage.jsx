@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../components/AuthProvider';
 import { useChannelTypes } from '../hooks/useChannelTypes';
+import { formatVolume, getVolumeConfig, VOLUME_UNITS } from '../components/VolumeEditor';
 import {
   Loader2, ChevronRight, ChevronDown, X, Check, Filter,
   Calendar, Users, TrendingUp, Clock, Building2
@@ -78,6 +79,16 @@ function ChannelCard({ channel, onDragStart, stage, onClick, typeMap, showKam, d
           : `→ ${formatShortDate(channel.pipeline_stage_changed_at || channel.updated_at)}`}
       </div>
 
+      {/* Volume badge */}
+      {channel.volume_amount != null && channel.volume_unit && (
+        <div className="mb-1">
+          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded"
+            style={{ background: getVolumeConfig(channel.volume_unit).bg, color: getVolumeConfig(channel.volume_unit).color }}>
+            {formatVolume(channel.volume_amount, channel.volume_unit)} {getVolumeConfig(channel.volume_unit).unit}
+          </span>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           {daysInStage !== null && (
@@ -101,16 +112,40 @@ function ChannelCard({ channel, onDragStart, stage, onClick, typeMap, showKam, d
 // ============ PIPELINE COLUMN ============
 function PipelineColumn({ stage, channels, onDrop, onDragStart, dragOver, setDragOver, onChannelClick, typeMap, showKam, dateType }) {
   const isOver = dragOver === stage.key;
+
+  // Calculate volume totals for this stage
+  const volTotals = {};
+  channels.forEach(ch => {
+    if (ch.volume_amount != null && ch.volume_unit) {
+      if (!volTotals[ch.volume_unit]) volTotals[ch.volume_unit] = 0;
+      volTotals[ch.volume_unit] += parseFloat(ch.volume_amount);
+    }
+  });
+  const hasVolumes = Object.keys(volTotals).length > 0;
+
   return (
     <div className="flex flex-col min-w-[200px] max-w-[240px] flex-1"
       onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(stage.key); }}
       onDragLeave={() => setDragOver(null)}
       onDrop={(e) => { e.preventDefault(); const id = e.dataTransfer.getData('text/plain'); onDrop(id, stage.key); setDragOver(null); }}>
-      <div className="flex items-center gap-2 mb-3 px-1">
+      <div className="flex items-center gap-2 mb-1 px-1">
         <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: stage.color }} />
         <span className="text-xs font-bold uppercase tracking-wider" style={{ color: stage.color }}>{stage.label}</span>
         <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#dde1e8] text-[#5a6078]">{channels.length}</span>
       </div>
+      {hasVolumes && (
+        <div className="flex flex-wrap gap-1 px-1 mb-2">
+          {Object.entries(volTotals).map(([unitKey, total]) => {
+            const cfg = getVolumeConfig(unitKey);
+            return (
+              <span key={unitKey} className="text-[8px] font-bold px-1.5 py-0.5 rounded-full"
+                style={{ background: cfg.bg, color: cfg.color }}>
+                {formatVolume(total, unitKey)} {cfg.unit}
+              </span>
+            );
+          })}
+        </div>
+      )}
       <div className={`flex-1 space-y-2 p-1.5 rounded-xl min-h-[120px] transition-colors ${isOver ? 'bg-[#1a1a2e] ring-1' : 'bg-transparent'}`}
         style={isOver ? { ringColor: stage.color } : {}}>
         {channels.map(ch => (
@@ -165,6 +200,12 @@ function PipelineMobile({ channelsByStage, onMove, loading, onChannelClick, type
                         {showKam && ch.profiles?.full_name ? `${ch.profiles.full_name} · ` : ''}
                         {dateType === 'creation' ? `Creado: ${formatShortDate(ch.created_at)}` : `→ ${formatShortDate(ch.pipeline_stage_changed_at || ch.updated_at)}`}
                       </div>
+                      {ch.volume_amount != null && ch.volume_unit && (
+                        <span className="inline-block mt-1 text-[9px] font-bold px-1.5 py-0.5 rounded"
+                          style={{ background: getVolumeConfig(ch.volume_unit).bg, color: getVolumeConfig(ch.volume_unit).color }}>
+                          {formatVolume(ch.volume_amount, ch.volume_unit)} {getVolumeConfig(ch.volume_unit).unit}
+                        </span>
+                      )}
                     </div>
                     {movingChannel === ch.id ? (
                       <div className="flex gap-1 flex-wrap justify-end max-w-[180px]">
@@ -551,6 +592,37 @@ export default function PipelinePage() {
           </div>
         </div>
       )}
+
+      {/* Volume summary */}
+      {(() => {
+        const volTotals = {};
+        filteredChannels.forEach(ch => {
+          if (ch.volume_amount != null && ch.volume_unit) {
+            if (!volTotals[ch.volume_unit]) volTotals[ch.volume_unit] = 0;
+            volTotals[ch.volume_unit] += parseFloat(ch.volume_amount);
+          }
+        });
+        return Object.keys(volTotals).length > 0 ? (
+          <div className="bg-[#f7f8fa] border border-[#dde1e8] rounded-xl p-2.5 mb-3">
+            <div className="text-[9px] font-bold text-[#8b90a0] uppercase tracking-wider mb-2">Volumen total en pipeline</div>
+            <div className="flex gap-2">
+              {VOLUME_UNITS.map(u => {
+                const total = volTotals[u.key] || 0;
+                if (total === 0) return null;
+                return (
+                  <div key={u.key} className="flex-1 rounded-lg p-2 text-center" style={{ background: u.bg }}>
+                    <div className="text-lg font-extrabold" style={{ color: u.color }}>
+                      {formatVolume(total, u.key)}
+                    </div>
+                    <div className="text-[9px] font-semibold" style={{ color: u.color }}>{u.label}</div>
+                    <div className="text-[7px] text-[#8b90a0]">{u.unit}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null;
+      })()}
 
       {/* Progress bar */}
       <div className="flex gap-1 mb-3 h-2 rounded-full overflow-hidden bg-[#dde1e8]">
