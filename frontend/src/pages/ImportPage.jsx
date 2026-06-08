@@ -16,6 +16,8 @@ const CHANNEL_FIELDS = [
   { key: 'website', label: 'Página web', required: false },
   { key: 'google_rating', label: 'Valoración Google', required: false },
   { key: 'lead_source', label: 'Origen del lead', required: false },
+  { key: 'volume_amount', label: 'Volumen anual', required: false },
+  { key: 'volume_unit', label: 'Tipo volumen (residencial/pymes/caes)', required: false },
   { key: 'address', label: 'Dirección / Calle', required: false },
   { key: 'city', label: 'Localidad', required: false },
   { key: 'province', label: 'Provincia', required: false },
@@ -188,6 +190,8 @@ function MappingStep({ fileData, onMapped, onBack }) {
       else if (n.includes('web') || n.includes('pagina') || n.includes('url') || n.includes('sitio')) autoMap[h] = 'website';
       else if (n.includes('google') || n.includes('valoracion') || n.includes('rating') || n.includes('puntuacion')) autoMap[h] = 'google_rating';
       else if (n.includes('origen') || n.includes('source') || n.includes('lead') || n.includes('procedencia') || n.includes('captacion')) autoMap[h] = 'lead_source';
+      else if (n.includes('volumen') || n.includes('volume') || n.includes('cantidad')) autoMap[h] = 'volume_amount';
+      else if (n.includes('tipo volumen') || n.includes('unidad') || n.includes('medida')) autoMap[h] = 'volume_unit';
       else if (n.includes('direccion') || n.includes('address') || n.includes('calle') || n.includes('domicilio')) autoMap[h] = 'address';
       else if (n.includes('localidad') || n.includes('ciudad') || n.includes('city') || n.includes('poblacion') || n.includes('municipio')) autoMap[h] = 'city';
       else if (n.includes('provincia') || n.includes('province') || n.includes('region')) autoMap[h] = 'province';
@@ -427,6 +431,8 @@ export default function ImportPage() {
         website: row.website || null,
         google_rating: row.google_rating != null && row.google_rating !== '' ? row.google_rating : null,
         lead_source: row.lead_source || null,
+        volume_amount: row.volume_amount && !isNaN(parseFloat(row.volume_amount)) ? parseFloat(row.volume_amount) : null,
+        volume_unit: row.volume_unit ? row.volume_unit.toLowerCase().replace(/\s/g, '') : null,
         address: row.address || null,
         city: row.city || null,
         province: row.province || null,
