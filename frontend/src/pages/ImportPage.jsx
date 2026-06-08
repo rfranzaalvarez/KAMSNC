@@ -15,6 +15,7 @@ const CHANNEL_FIELDS = [
   { key: 'cif', label: 'CIF', required: false },
   { key: 'website', label: 'Página web', required: false },
   { key: 'google_rating', label: 'Valoración Google', required: false },
+  { key: 'lead_source', label: 'Origen del lead', required: false },
   { key: 'address', label: 'Dirección / Calle', required: false },
   { key: 'city', label: 'Localidad', required: false },
   { key: 'province', label: 'Provincia', required: false },
@@ -89,16 +90,16 @@ function FileUploadStep({ onFileParsed }) {
 
   const downloadTemplate = () => {
     const data = [
-      { Nombre: 'Distribuciones García', Contacto: 'Antonio García', Teléfono: '+34 612 345 678', Email: 'antonio@garcia.es', CIF: 'B12345678', Web: 'www.garcia.es', 'Valoración Google': '4.5', Calle: 'C/ Gran Vía 42', Localidad: 'Madrid', Provincia: 'Madrid', Estado: 'Activo', Notas: 'Cliente desde 2020' },
-      { Nombre: 'Electro Norte S.L.', Contacto: 'Laura Martín', Teléfono: '+34 623 456 789', Email: 'laura@electronorte.com', CIF: 'A87654321', Web: 'www.electronorte.com', 'Valoración Google': '3.8', Calle: 'Av. de América 15', Localidad: 'Madrid', Provincia: 'Madrid', Estado: 'Prospecto', Notas: 'Contactar en junio' },
-      { Nombre: 'Canal Sur Energía', Contacto: 'Pedro López', Teléfono: '+34 634 567 890', Email: 'pedro@canalsur.es', CIF: 'B11223344', Web: '', 'Valoración Google': '', Calle: 'C/ Alcalá 200', Localidad: 'Sevilla', Provincia: 'Sevilla', Estado: 'En desarrollo', Notas: '' },
+      { Nombre: 'Distribuciones García', Contacto: 'Antonio García', Teléfono: '+34 612 345 678', Email: 'antonio@garcia.es', CIF: 'B12345678', Web: 'www.garcia.es', 'Valoración Google': '4.5', 'Origen del lead': 'Inbound - Web Naturgy', Calle: 'C/ Gran Vía 42', Localidad: 'Madrid', Provincia: 'Madrid', Estado: 'Activo', Notas: 'Cliente desde 2020' },
+      { Nombre: 'Electro Norte S.L.', Contacto: 'Laura Martín', Teléfono: '+34 623 456 789', Email: 'laura@electronorte.com', CIF: 'A87654321', Web: 'www.electronorte.com', 'Valoración Google': '3.8', 'Origen del lead': 'Outbound - Sales Navigator', Calle: 'Av. de América 15', Localidad: 'Madrid', Provincia: 'Madrid', Estado: 'Prospecto', Notas: 'Contactar en junio' },
+      { Nombre: 'Canal Sur Energía', Contacto: 'Pedro López', Teléfono: '+34 634 567 890', Email: 'pedro@canalsur.es', CIF: 'B11223344', Web: '', 'Valoración Google': '', 'Origen del lead': 'Outbound - Referidos otro canal', Calle: 'C/ Alcalá 200', Localidad: 'Sevilla', Provincia: 'Sevilla', Estado: 'En desarrollo', Notas: '' },
     ];
 
     const ws = XLSX.utils.json_to_sheet(data);
     ws['!cols'] = [
       { wch: 25 }, { wch: 20 }, { wch: 18 }, { wch: 25 }, { wch: 12 },
-      { wch: 22 }, { wch: 18 }, { wch: 25 }, { wch: 15 }, { wch: 15 },
-      { wch: 15 }, { wch: 25 },
+      { wch: 22 }, { wch: 18 }, { wch: 28 }, { wch: 25 }, { wch: 15 },
+      { wch: 15 }, { wch: 15 }, { wch: 25 },
     ];
 
     const wb = XLSX.utils.book_new();
@@ -159,7 +160,7 @@ function FileUploadStep({ onFileParsed }) {
           <p>1. Descarga la <strong>plantilla Excel</strong> con el botón de arriba</p>
           <p>2. Rellena los datos de tus canales (uno por fila)</p>
           <p>3. La columna <strong>Nombre</strong> es obligatoria, el resto son opcionales</p>
-          <p>4. Campos disponibles: <span className="text-text-secondary">Nombre, Contacto, Teléfono, Email, CIF, Web, Valoración Google, Calle, Localidad, Provincia, Estado, Notas</span></p>
+          <p>4. Campos disponibles: <span className="text-text-secondary">Nombre, Contacto, Teléfono, Email, CIF, Web, Valoración Google, Origen del lead, Calle, Localidad, Provincia, Estado, Notas</span></p>
           <p>5. Estados válidos: <span className="text-text-secondary">Prospecto, En desarrollo, Activo, Inactivo</span></p>
           <p>6. Sube el archivo y revisa la previsualización antes de importar</p>
           <p>7. La clasificación del canal (Energia/Solar/CAEs/Otros) se asigna después desde la ficha</p>
@@ -186,6 +187,7 @@ function MappingStep({ fileData, onMapped, onBack }) {
       else if (n === 'cif' || n === 'nif' || n === 'nie' || n.includes('fiscal')) autoMap[h] = 'cif';
       else if (n.includes('web') || n.includes('pagina') || n.includes('url') || n.includes('sitio')) autoMap[h] = 'website';
       else if (n.includes('google') || n.includes('valoracion') || n.includes('rating') || n.includes('puntuacion')) autoMap[h] = 'google_rating';
+      else if (n.includes('origen') || n.includes('source') || n.includes('lead') || n.includes('procedencia') || n.includes('captacion')) autoMap[h] = 'lead_source';
       else if (n.includes('direccion') || n.includes('address') || n.includes('calle') || n.includes('domicilio')) autoMap[h] = 'address';
       else if (n.includes('localidad') || n.includes('ciudad') || n.includes('city') || n.includes('poblacion') || n.includes('municipio')) autoMap[h] = 'city';
       else if (n.includes('provincia') || n.includes('province') || n.includes('region')) autoMap[h] = 'province';
@@ -285,6 +287,14 @@ function PreviewStep({ rows, mapping, onImport, onBack, importing, result }) {
     Object.entries(mapping).forEach(([excelCol, field]) => {
       let value = row[excelCol]?.trim() || '';
       if (field === 'status') value = STATUS_MAP[value.toLowerCase()] || 'prospect';
+      if (field === 'lead_source') {
+        const v = value.toLowerCase();
+        if (v.includes('web') || v.includes('inbound')) value = 'inbound_web';
+        else if (v.includes('navigator') || v.includes('sales')) value = 'outbound_navigator';
+        else if (v.includes('referid')) value = 'outbound_referidos';
+        else if (v.includes('outbound') || v.includes('otro')) value = 'outbound_otros';
+        else if (value) value = value; // keep as-is if not recognized
+      }
       if (field === 'google_rating') {
         if (value && !isNaN(parseFloat(value))) value = parseFloat(value);
         else value = null;
@@ -416,6 +426,7 @@ export default function ImportPage() {
         cif: row.cif || null,
         website: row.website || null,
         google_rating: row.google_rating != null && row.google_rating !== '' ? row.google_rating : null,
+        lead_source: row.lead_source || null,
         address: row.address || null,
         city: row.city || null,
         province: row.province || null,
