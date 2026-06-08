@@ -201,6 +201,7 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
         cif: ch?.cif || '',
         website: ch?.website || '',
         google_rating: ch?.google_rating ?? '',
+        lead_source: ch?.lead_source || '',
         address: ch?.address || '',
         city: ch?.city || '',
         province: ch?.province || '',
@@ -232,6 +233,7 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
       cif: channel.cif || '',
       website: channel.website || '',
       google_rating: channel.google_rating ?? '',
+      lead_source: channel.lead_source || '',
       address: channel.address || '',
       city: channel.city || '',
       province: channel.province || '',
@@ -261,6 +263,7 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
           cif: editForm.cif || null,
           website: editForm.website || null,
           google_rating: editForm.google_rating && editForm.google_rating !== 'no_tiene' ? parseFloat(editForm.google_rating) : null,
+          lead_source: editForm.lead_source || null,
           address: editForm.address || null,
           city: editForm.city || null,
           province: editForm.province || null,
@@ -389,6 +392,17 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
                 <input type="url" value={editForm.website} onChange={(e) => updateField('website', e.target.value)}
                   placeholder="https://www.ejemplo.com" className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500" />
               </div>
+              <div>
+                <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Origen del lead</label>
+                <select value={editForm.lead_source} onChange={(e) => updateField('lead_source', e.target.value)}
+                  className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500">
+                  <option value="">Seleccionar...</option>
+                  <option value="inbound_web">Inbound - Web Naturgy</option>
+                  <option value="outbound_navigator">Outbound - Sales Navigator</option>
+                  <option value="outbound_referidos">Outbound - Referidos otro canal</option>
+                  <option value="outbound_otros">Outbound - Otros</option>
+                </select>
+              </div>
               <AddressFields form={editForm} update={updateField} fieldClass="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500" />
               <div>
                 <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Notas</label>
@@ -482,6 +496,17 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
                 <div className="flex items-center gap-2.5 text-sm">
                   <span className="text-text-muted flex-shrink-0 text-xs">⭐</span>
                   <span className="text-text-muted">Sin valoración en Google</span>
+                </div>
+              )}
+              {channel.lead_source && (
+                <div className="flex items-center gap-2.5 text-sm">
+                  <span className="text-text-muted flex-shrink-0 text-xs">📥</span>
+                  <span className="text-text-secondary">{{
+                    inbound_web: 'Inbound - Web Naturgy',
+                    outbound_navigator: 'Outbound - Sales Navigator',
+                    outbound_referidos: 'Outbound - Referidos otro canal',
+                    outbound_otros: 'Outbound - Otros',
+                  }[channel.lead_source] || channel.lead_source}</span>
                 </div>
               )}
             </div>
@@ -596,7 +621,7 @@ function NewChannelForm({ onBack, onSaved, types }) {
   const [fieldErrors, setFieldErrors] = useState({});
   const [form, setForm] = useState({
     name: '', contact_name: '', phone: '', email: '',
-    cif: '', website: '', google_rating: '',
+    cif: '', website: '', google_rating: '', lead_source: '',
     address: '', city: '', province: '', notes: '',
   });
 
@@ -637,6 +662,7 @@ function NewChannelForm({ onBack, onSaved, types }) {
         phone: form.phone || null, email: form.email || null,
         cif: form.cif || null, website: form.website || null,
         google_rating: form.google_rating && form.google_rating !== 'no_tiene' ? parseFloat(form.google_rating) : null,
+        lead_source: form.lead_source || null,
         address: form.address || null, city: form.city || null, province: form.province || null,
         notes: form.notes || null, assigned_to: user.id, status: 'prospect', pipeline_stage: 'lead',
       }).select().single();
@@ -717,6 +743,16 @@ function NewChannelForm({ onBack, onSaved, types }) {
           <div>
             <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Página web</label>
             <input type="url" value={form.website} onChange={(e) => update('website', e.target.value)} placeholder="https://www.ejemplo.com" className={fieldClass} />
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Origen del lead</label>
+            <select value={form.lead_source} onChange={(e) => update('lead_source', e.target.value)} className={fieldClass}>
+              <option value="">Seleccionar...</option>
+              <option value="inbound_web">Inbound - Web Naturgy</option>
+              <option value="outbound_navigator">Outbound - Sales Navigator</option>
+              <option value="outbound_referidos">Outbound - Referidos otro canal</option>
+              <option value="outbound_otros">Outbound - Otros</option>
+            </select>
           </div>
           <button onClick={nextStep} className="w-full py-3 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl transition-colors mt-2">Siguiente →</button>
         </div>
