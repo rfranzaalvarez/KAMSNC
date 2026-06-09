@@ -10,12 +10,13 @@ import ClassificationSelector from '../components/ClassificationSelector';
 import CompanyAnalysis from '../components/CompanyAnalysis';
 import ContactHub from '../components/ContactHub';
 import VolumeEditor from '../components/VolumeEditor';
+import { ChannelReassign, BulkReassignModal } from '../components/ChannelReassign';
 import AddressFields from '../components/AddressFields';
 import { useChannelTypes } from '../hooks/useChannelTypes';
 import { validatePhone, validateEmail, validateCIF } from '../lib/validators';
 import {
   Search, Plus, Building2, Phone, Mail, MapPin,
-  ChevronRight, User, X, Check, Loader2, Edit3, Upload
+  ChevronRight, User, X, Check, Loader2, Edit3, Upload, ArrowRightLeft
 } from 'lucide-react';
 
 const STATUS_CONFIG = {
@@ -35,7 +36,7 @@ const PIPELINE_CONFIG = {
 };
 
 // ============ LISTADO DE CANALES ============
-function ChannelList({ channels, loading, onSelect, filter, setFilter, search, setSearch, typeMap }) {
+function ChannelList({ channels, loading, onSelect, filter, setFilter, search, setSearch, typeMap, isManager, onBulkReassign }) {
   const filters = [
     { key: 'all', label: 'Todos', count: channels.length },
     { key: 'active', label: 'Activos', count: channels.filter(c => c.status === 'active').length },
@@ -57,6 +58,13 @@ function ChannelList({ channels, loading, onSelect, filter, setFilter, search, s
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-extrabold tracking-tight">Canales</h1>
         <div className="flex items-center gap-2">
+          {isManager && (
+            <button onClick={onBulkReassign}
+              className="flex items-center gap-1.5 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-semibold rounded-lg transition-colors">
+              <ArrowRightLeft size={13} />
+              Reasignar
+            </button>
+          )}
           <a
             href="/import"
             className="flex items-center gap-1.5 px-3 py-2 bg-surface-2 hover:bg-surface-3 text-text-secondary text-xs font-semibold rounded-lg transition-colors"
@@ -522,6 +530,11 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
         )}
       </div>
 
+      {/* Reasignar KAM (solo managers) */}
+      <ChannelReassign channel={channel} onReassigned={(kamId) => {
+        setChannel(prev => ({ ...prev, assigned_to: kamId }));
+      }} />
+
       {/* Clasificación del canal */}
       <div className="mb-4">
         <ChannelClassification channelId={channelId} />
@@ -813,7 +826,7 @@ function NewChannelForm({ onBack, onSaved, types }) {
 
 // ============ PÁGINA PRINCIPAL DE CANALES ============
 export default function ChannelsPage() {
-  const { user } = useAuthContext();
+  const { user, isManager } = useAuthContext();
   const { types, typeMap } = useChannelTypes();
   const [channels, setChannels] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -821,6 +834,7 @@ export default function ChannelsPage() {
   const [selectedId, setSelectedId] = useState(null);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const [showBulkReassign, setShowBulkReassign] = useState(false);
 
   // Leer parámetro ?detail=ID de la URL (deep link desde Pipeline)
   useEffect(() => {
@@ -870,5 +884,13 @@ export default function ChannelsPage() {
 
   if (view === 'detail' && selectedId) return <ChannelDetail channelId={selectedId} onBack={handleBack} types={types} typeMap={typeMap} />;
   if (view === 'new') return <NewChannelForm onBack={handleBack} onSaved={handleSaved} types={types} />;
-  return <ChannelList channels={channels} loading={loading} onSelect={handleSelect} filter={filter} setFilter={setFilter} search={search} setSearch={setSearch} typeMap={typeMap} />;
+  return (
+    <>
+      <ChannelList channels={channels} loading={loading} onSelect={handleSelect} filter={filter} setFilter={setFilter}
+        search={search} setSearch={setSearch} typeMap={typeMap} isManager={isManager} onBulkReassign={() => setShowBulkReassign(true)} />
+      {showBulkReassign && (
+        <BulkReassignModal onClose={() => setShowBulkReassign(false)} onDone={() => loadChannels()} />
+      )}
+    </>
+  );
 }
