@@ -221,9 +221,9 @@ export default function HomePage() {
                   <div className={`w-2 h-2 rounded-full ${!v.checkout_at?'bg-brand-500 animate-pulse':v.result==='positive'?'bg-green-500':v.result==='negative'?'bg-red-500':'bg-amber-500'}`}/>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold truncate">{v.channels?.name||'Canal'}</div>
-                    <div className="text-[11px] text-text-secondary">{time}{v.duration_minutes?` · ${v.duration_minutes} min`:' · En curso'}</div>
+                    <div className="text-[11px] text-text-secondary">{time}{v.duration_minutes ? ` · ${v.duration_minutes} min` : v.checkout_at || v.result ? ' · Finalizada' : ' · En curso'}</div>
                   </div>
-                  {v.result?<span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${rc}`}>{v.result==='positive'?'✓ Positiva':v.result==='neutral'?'~ Neutral':'✗ Negativa'}</span>:!v.checkout_at?<span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-600">En curso</span>:null}
+                  {v.result?<span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${rc}`}>{v.result==='positive'?'✓ Positiva':v.result==='neutral'?'~ Neutral':'✗ Negativa'}</span>:!v.checkout_at&&!v.result?<span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-blue-50 text-blue-600">En curso</span>:null}
                 </div>
               );
             })}
