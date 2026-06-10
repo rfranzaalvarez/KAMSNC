@@ -534,11 +534,6 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
         <ActivityTimeline channel={channel} />
       </div>
 
-      {/* Brief pre-visita con IA */}
-      <div className="mb-4">
-        <PreVisitBrief channelId={channelId} channelName={channel.name} />
-      </div>
-
       {/* Volumen Anual Negociado */}
       <div className="mb-4">
         <VolumeEditor channel={channel} onChannelUpdate={setChannel} />
@@ -547,6 +542,11 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
       {/* Plan de cuenta */}
       <div className="mb-4">
         <AccountPlan channelId={channelId} channelName={channel.name} />
+      </div>
+
+      {/* Brief pre-visita con IA */}
+      <div className="mb-4">
+        <PreVisitBrief channelId={channelId} channelName={channel.name} />
       </div>
     </div>
   );
