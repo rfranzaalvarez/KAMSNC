@@ -3,10 +3,56 @@ import { supabase } from '../lib/supabase';
 import { useAuthContext } from './AuthProvider';
 import { 
   Shield, Loader2, RefreshCw, ChevronDown, ChevronUp, 
-  ExternalLink, Upload, FileText, Trash2, Download 
+  ExternalLink, Upload, FileText, Trash2, Download, Edit3, Check, X
 } from 'lucide-react';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || '';
+
+function CifInlineEditor({ channel, onChannelUpdate }) {
+  const [editing, setEditing] = useState(false);
+  const [cif, setCif] = useState(channel?.cif || '');
+  const [saving, setSaving] = useState(false);
+
+  async function saveCif() {
+    if (!channel?.id) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase.from('channels').update({ cif: cif.trim() || null }).eq('id', channel.id);
+      if (error) throw error;
+      if (onChannelUpdate) onChannelUpdate({ ...channel, cif: cif.trim() || null });
+      setEditing(false);
+    } catch (err) { console.error(err); }
+    finally { setSaving(false); }
+  }
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-2 p-2 bg-surface-1 rounded-lg">
+        <label className="text-[10px] font-bold text-text-muted flex-shrink-0">CIF</label>
+        <input type="text" value={cif} onChange={(e) => setCif(e.target.value.toUpperCase())}
+          placeholder="Ej: B12345678" maxLength={9}
+          className="flex-1 px-2 py-1.5 bg-white border border-surface-3 rounded-lg text-xs focus:outline-none focus:border-brand-500"
+          autoFocus onKeyDown={(e) => { if (e.key === 'Enter') saveCif(); if (e.key === 'Escape') setEditing(false); }} />
+        <button onClick={saveCif} disabled={saving} className="p-1.5 bg-green-100 hover:bg-green-200 text-green-600 rounded-lg transition-colors">
+          {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+        </button>
+        <button onClick={() => { setEditing(false); setCif(channel?.cif || ''); }} className="p-1.5 text-text-muted hover:text-text-primary">
+          <X size={12} />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button onClick={() => setEditing(true)}
+      className="flex items-center gap-2 p-2 bg-surface-1 hover:bg-surface-2 rounded-lg transition-colors w-full text-left">
+      <Edit3 size={12} className="text-text-muted flex-shrink-0" />
+      <span className="text-[11px] text-text-muted">
+        {channel?.cif ? `CIF: ${channel.cif} · Pulsa para editar` : 'Añadir CIF del canal'}
+      </span>
+    </button>
+  );
+}
 
 export default function CompanyAnalysis({ channel, onChannelUpdate }) {
   const { user } = useAuthContext();
@@ -248,24 +294,20 @@ Sé concreto y práctico. Si faltan datos, indícalo claramente y ajusta el scor
         </div>
 
         {/* Enlace a DatosCIF */}
-        {channel?.cif && (
-          <a
-            href={`https://www.datoscif.es/empresa/${channel.cif}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 p-2.5 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
-          >
-            <ExternalLink size={14} className="text-blue-500 flex-shrink-0" />
-            <div className="flex-1">
-              <div className="text-xs font-semibold text-blue-700">Consultar en DatosCIF.es</div>
-              <div className="text-[10px] text-blue-500">Ver información financiera pública · CIF: {channel.cif}</div>
-            </div>
-          </a>
-        )}
-        {!channel?.cif && (
-          <div className="p-2.5 bg-surface-1 rounded-lg">
-            <p className="text-[11px] text-text-muted">Añade el CIF del canal para consultar DatosCIF.es</p>
+        {channel?.cif ? (
+          <div className="space-y-2">
+            <a href={`https://www.datoscif.es/empresa/${channel.cif}`} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-2 p-2.5 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors">
+              <ExternalLink size={14} className="text-blue-500 flex-shrink-0" />
+              <div className="flex-1">
+                <div className="text-xs font-semibold text-blue-700">Consultar en DatosCIF.es</div>
+                <div className="text-[10px] text-blue-500">Ver información financiera pública · CIF: {channel.cif}</div>
+              </div>
+            </a>
+            <CifInlineEditor channel={channel} onChannelUpdate={onChannelUpdate} />
           </div>
+        ) : (
+          <CifInlineEditor channel={channel} onChannelUpdate={onChannelUpdate} />
         )}
 
         {/* Botón de análisis IA */}
