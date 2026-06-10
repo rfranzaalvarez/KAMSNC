@@ -433,6 +433,10 @@ export default function CalendarPage() {
               <EventCard key={`${event._source}-${event._sourceId}`} event={event}
                 onDelete={handleDeleteEvent} onComplete={handleCompleteEvent} />
             ))}
+            <button onClick={() => setShowNewModal(true)}
+              className="w-full py-2.5 border border-dashed border-surface-3 hover:border-blue-300 hover:bg-blue-50/50 rounded-xl text-xs font-semibold text-text-muted hover:text-blue-500 transition-colors">
+              + Planificar otra acción
+            </button>
           </div>
         )}
       </div>
