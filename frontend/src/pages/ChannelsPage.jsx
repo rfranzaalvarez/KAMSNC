@@ -4,11 +4,10 @@ import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../components/AuthProvider';
 import AccountPlan from '../components/AccountPlan';
 import PreVisitBrief from '../components/PreVisitBrief';
-import ChannelNotes from '../components/ChannelNotes';
 import ChannelClassification from '../components/ChannelClassification';
 import ClassificationSelector from '../components/ClassificationSelector';
 import CompanyAnalysis from '../components/CompanyAnalysis';
-import ContactHub from '../components/ContactHub';
+import ActivityTimeline from '../components/ActivityTimeline';
 import VolumeEditor from '../components/VolumeEditor';
 import { ChannelReassign, BulkReassignModal } from '../components/ChannelReassign';
 import AddressFields from '../components/AddressFields';
@@ -181,7 +180,6 @@ function ChannelList({ channels, loading, onSelect, filter, setFilter, search, s
 function ChannelDetail({ channelId, onBack, types, typeMap }) {
   const { user } = useAuthContext();
   const [channel, setChannel] = useState(null);
-  const [visits, setVisits] = useState([]);
   const [loading, setLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState({});
@@ -217,14 +215,6 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
         notes: ch?.notes || '',
         status: ch?.status || 'prospect',
       });
-
-      const { data: v } = await supabase
-        .from('visits')
-        .select('*')
-        .eq('channel_id', channelId)
-        .order('checkin_at', { ascending: false })
-        .limit(20);
-      setVisits(v || []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -312,12 +302,6 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
   const status = STATUS_CONFIG[channel.status] || STATUS_CONFIG.prospect;
   const type = typeMap[channel.channel_type] || channel.channel_type || 'Otro';
   const pipeline = PIPELINE_CONFIG[channel.pipeline_stage] || '-';
-
-  const resultConfig = {
-    positive: { label: 'Positiva', color: 'text-green-400', bg: 'bg-green-500/20' },
-    neutral: { label: 'Neutral', color: 'text-amber-400', bg: 'bg-amber-500/20' },
-    negative: { label: 'Negativa', color: 'text-red-400', bg: 'bg-red-500/20' },
-  };
 
   return (
     <div>
@@ -545,19 +529,14 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
         <CompanyAnalysis channel={channel} onChannelUpdate={setChannel} />
       </div>
 
-      {/* Centro de contacto */}
+      {/* Actividad del canal (timeline unificado: visitas + interacciones + notas) */}
       <div className="mb-4">
-        <ContactHub channel={channel} />
+        <ActivityTimeline channel={channel} />
       </div>
 
       {/* Brief pre-visita con IA */}
       <div className="mb-4">
         <PreVisitBrief channelId={channelId} channelName={channel.name} />
-      </div>
-
-      {/* Notas del canal */}
-      <div className="mb-4">
-        <ChannelNotes channelId={channelId} />
       </div>
 
       {/* Volumen Anual Negociado */}
@@ -568,62 +547,6 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
       {/* Plan de cuenta */}
       <div className="mb-4">
         <AccountPlan channelId={channelId} channelName={channel.name} />
-      </div>
-
-      {/* Historial de visitas */}
-      <div className="mb-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-bold">Historial de visitas</h3>
-          <span className="text-[11px] text-text-secondary">{visits.length} visitas</span>
-        </div>
-
-        {visits.length === 0 ? (
-          <div className="text-center py-8 bg-surface-1 border border-surface-3 rounded-xl">
-            <p className="text-sm text-text-secondary">Aún no hay visitas registradas</p>
-            <p className="text-xs text-text-muted mt-1">Haz check-in para registrar la primera</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {visits.map(visit => {
-              const date = new Date(visit.checkin_at);
-              const result = visit.result ? resultConfig[visit.result] : null;
-
-              return (
-                <div key={visit.id} className="bg-surface-1 border border-surface-3 rounded-xl p-3">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold">
-                        {date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </span>
-                      {visit.duration_minutes && (
-                        <span className="text-[10px] text-text-muted">{visit.duration_minutes} min</span>
-                      )}
-                    </div>
-                    {result && (
-                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${result.bg} ${result.color}`}>
-                        {result.label}
-                      </span>
-                    )}
-                  </div>
-                  {visit.objective && (
-                    <div className="text-[11px] text-text-secondary mb-1">
-                      Objetivo: {visit.objective.replace(/_/g, ' ')}
-                    </div>
-                  )}
-                  {visit.result_notes && (
-                    <p className="text-xs text-text-secondary leading-relaxed">{visit.result_notes}</p>
-                  )}
-                  {visit.next_steps && (
-                    <div className="mt-2 p-2 bg-surface-0 rounded-lg">
-                      <div className="text-[10px] font-bold text-brand-400 mb-0.5">Próximos pasos</div>
-                      <p className="text-xs text-text-secondary">{visit.next_steps}</p>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
       </div>
     </div>
   );
