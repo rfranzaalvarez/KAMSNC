@@ -32,7 +32,8 @@ export default function HomePage() {
     try {
       const now = new Date();
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-      const todayKey = now.toISOString().split('T')[0];
+      const pad = (n) => String(n).padStart(2, '0');
+      const todayKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
       const mondayStart = (() => { const d = new Date(now); const day = d.getDay() || 7; d.setDate(d.getDate() - day + 1); d.setHours(0,0,0,0); return d.toISOString(); })();
 
       const [r1, r2, r3, r4, r5, r6, r7] = await Promise.allSettled([
@@ -43,8 +44,8 @@ export default function HomePage() {
         supabase.from('visits').select('*, channels(name)').eq('kam_id', user.id).gte('checkin_at', todayStart).order('checkin_at', { ascending: false }),
         // Planned visits for today
         supabase.from('planned_visits').select('*, channels(name, address)').eq('kam_id', user.id).eq('planned_date', todayKey).order('planned_time'),
-        // Planned actions for today
-        supabase.from('channel_interactions').select('*, channels(name, address)').eq('user_id', user.id).eq('planned_date', todayKey).eq('is_completed', false).order('planned_time'),
+        // Planned actions for today (is_completed = false or NULL with planned_date)
+        supabase.from('channel_interactions').select('*, channels(name, address)').eq('user_id', user.id).eq('planned_date', todayKey).or('is_completed.eq.false,is_completed.is.null').order('planned_time'),
       ]);
 
       if (!mountedRef.current) return;
