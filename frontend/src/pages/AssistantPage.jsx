@@ -89,10 +89,15 @@ const ACTION_TYPE_LABELS = {
   whatsapp: '💬 WhatsApp', meeting: '👥 Reunión', linkedin: '💼 LinkedIn', other: '📋 Otro',
 };
 
+function localDateKey(d) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 function resolveDate(dateStr) {
-  if (!dateStr) { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split('T')[0]; }
-  if (dateStr === 'hoy') return new Date().toISOString().split('T')[0];
-  if (dateStr === 'TOMORROW' || dateStr === 'mañana') { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().split('T')[0]; }
+  if (!dateStr) { const d = new Date(); d.setDate(d.getDate() + 1); return localDateKey(d); }
+  if (dateStr === 'hoy') return localDateKey(new Date());
+  if (dateStr === 'TOMORROW' || dateStr === 'mañana') { const d = new Date(); d.setDate(d.getDate() + 1); return localDateKey(d); }
   if (dateStr.startsWith('NEXT_')) {
     const dayNames = { MONDAY: 1, TUESDAY: 2, WEDNESDAY: 3, THURSDAY: 4, FRIDAY: 5, SATURDAY: 6, SUNDAY: 0 };
     const targetDay = dayNames[dateStr.replace('NEXT_', '')];
@@ -100,11 +105,11 @@ function resolveDate(dateStr) {
       const d = new Date(); const currentDay = d.getDay();
       const daysUntil = ((targetDay - currentDay + 7) % 7) || 7;
       d.setDate(d.getDate() + daysUntil);
-      return d.toISOString().split('T')[0];
+      return localDateKey(d);
     }
   }
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
-  return new Date().toISOString().split('T')[0];
+  return localDateKey(new Date());
 }
 
 function MessageBubble({ message }) {
@@ -323,16 +328,16 @@ export default function AssistantPage() {
           const now = new Date();
           let startDate, endDate;
           if (params.date === 'hoy' || !params.date) {
-            startDate = now.toISOString().split('T')[0];
+            startDate = localDateKey(now);
             endDate = startDate;
           } else if (params.date === 'mañana' || params.date === 'TOMORROW') {
             const d = new Date(now); d.setDate(d.getDate() + 1);
-            startDate = d.toISOString().split('T')[0]; endDate = startDate;
+            startDate = localDateKey(d); endDate = startDate;
           } else if (params.date === 'semana') {
             const d = new Date(now); const day = d.getDay() || 7; d.setDate(d.getDate() - day + 1);
-            startDate = d.toISOString().split('T')[0];
+            startDate = localDateKey(d);
             const e = new Date(d); e.setDate(e.getDate() + 6);
-            endDate = e.toISOString().split('T')[0];
+            endDate = localDateKey(e);
           } else {
             startDate = resolveDate(params.date); endDate = startDate;
           }
@@ -410,7 +415,7 @@ export default function AssistantPage() {
           const now = new Date();
           const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
           const mondayStart = (() => { const d = new Date(now); const day = d.getDay() || 7; d.setDate(d.getDate() - day + 1); d.setHours(0,0,0,0); return d.toISOString(); })();
-          const todayKey = now.toISOString().split('T')[0];
+          const todayKey = localDateKey(now);
           const [today, week, channels, pipeline, plannedToday] = await Promise.allSettled([
             supabase.from('visits').select('id', { count: 'exact', head: true }).eq('kam_id', user.id).gte('checkin_at', todayStart),
             supabase.from('visits').select('id', { count: 'exact', head: true }).eq('kam_id', user.id).gte('checkin_at', mondayStart),
