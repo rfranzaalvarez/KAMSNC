@@ -1,8 +1,10 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Home, Building2, BarChart3, Trophy, Sparkles, CalendarDays } from 'lucide-react';
+import { Home, Building2, BarChart3, Trophy, Sparkles, CalendarDays, X } from 'lucide-react';
 import { useAuthContext } from './AuthProvider';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { offlineQueue } from '../lib/offline';
+
+const AssistantPage = lazy(() => import('../pages/AssistantPage'));
 
 const NATURGY_LOGO = 'https://www.naturgy.es/content/dam/naturgy/espana/global/logos/logo_naturgy_home_mobile.svg';
 
@@ -11,7 +13,6 @@ const baseNavItems = [
   { to: '/channels', icon: Building2, label: 'Canales' },
   { to: '/calendar', icon: CalendarDays, label: 'Agenda' },
   { to: '/pipeline', icon: BarChart3, label: 'Pipeline' },
-  { to: '/assistant', icon: Sparkles, label: 'Asistente' },
 ];
 
 export function AppLayout() {
@@ -20,6 +21,7 @@ export function AppLayout() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingCount, setPendingCount] = useState(0);
   const [showMenu, setShowMenu] = useState(false);
+  const [showAssistant, setShowAssistant] = useState(false);
 
   useEffect(() => {
     const on = () => setIsOnline(true);
@@ -54,61 +56,97 @@ export function AppLayout() {
           <div className="w-px h-4 bg-surface-3" />
           <span className="font-bold text-sm text-text-primary tracking-tight">CRM para KAMs</span>
         </button>
-        <div className="relative">
-          <button onClick={() => setShowMenu(!showMenu)} className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-brand-500 flex items-center justify-center text-xs font-bold text-white">
-              {profile?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '??'}
-            </div>
+
+        <div className="flex items-center gap-2">
+          {/* AI Assistant button */}
+          <button onClick={() => setShowAssistant(!showAssistant)}
+            className="relative flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all"
+            style={{
+              background: showAssistant ? '#E87A1E' : 'rgba(232,122,30,0.08)',
+              color: showAssistant ? 'white' : '#E87A1E',
+              border: `1px solid ${showAssistant ? '#E87A1E' : 'rgba(232,122,30,0.3)'}`,
+            }}>
+            {showAssistant ? <X size={14} /> : <Sparkles size={14} />}
+            <span className="hidden sm:inline">{showAssistant ? 'Cerrar' : 'Asistente'}</span>
+            {!showAssistant && <div className="w-1.5 h-1.5 rounded-full bg-green-500 absolute -top-0.5 -right-0.5" />}
           </button>
-          {showMenu && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
-              <div className="absolute right-0 top-10 z-50 bg-white border border-surface-3 rounded-xl shadow-lg py-2 w-48">
-                <div className="px-4 py-2 border-b border-surface-3">
-                  <div className="text-sm font-semibold text-text-primary">{profile?.full_name}</div>
-                  <div className="text-xs text-text-secondary capitalize">{profile?.role}</div>
-                </div>
-                {isManager && (
-                  <NavLink to="/dashboard" onClick={() => setShowMenu(false)}
-                    className="block px-4 py-2.5 text-sm text-text-secondary hover:bg-surface-1 hover:text-text-primary">
-                    📊 Dashboard Manager
-                  </NavLink>
-                )}
-                <NavLink to="/import" onClick={() => setShowMenu(false)}
-                  className="block px-4 py-2.5 text-sm text-text-secondary hover:bg-surface-1 hover:text-text-primary">
-                  📥 Importar canales
-                </NavLink>
-                <NavLink to="/export" onClick={() => setShowMenu(false)}
-                  className="block px-4 py-2.5 text-sm text-text-secondary hover:bg-surface-1 hover:text-text-primary">
-                  📤 Exportar datos
-                </NavLink>
-                <NavLink to="/report" onClick={() => setShowMenu(false)}
-                  className="block px-4 py-2.5 text-sm text-text-secondary hover:bg-surface-1 hover:text-text-primary">
-                  📊 Informe semanal
-                </NavLink>
-                <button onClick={() => { setShowMenu(false); signOut(); }}
-                  className="w-full text-left px-4 py-2.5 text-sm text-red-500 hover:bg-surface-1">
-                  Cerrar sesión
-                </button>
+
+          {/* Avatar menu */}
+          <div className="relative">
+            <button onClick={() => setShowMenu(!showMenu)} className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-brand-500 flex items-center justify-center text-xs font-bold text-white">
+                {profile?.full_name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || '??'}
               </div>
-            </>
-          )}
+            </button>
+            {showMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+                <div className="absolute right-0 top-10 z-50 bg-white border border-surface-3 rounded-xl shadow-lg py-2 w-48">
+                  <div className="px-4 py-2 border-b border-surface-3">
+                    <div className="text-sm font-semibold text-text-primary">{profile?.full_name}</div>
+                    <div className="text-xs text-text-secondary capitalize">{profile?.role}</div>
+                  </div>
+                  {isManager && (
+                    <NavLink to="/dashboard" onClick={() => setShowMenu(false)}
+                      className="block px-4 py-2.5 text-sm text-text-secondary hover:bg-surface-1 hover:text-text-primary">
+                      📊 Dashboard Manager
+                    </NavLink>
+                  )}
+                  <NavLink to="/import" onClick={() => setShowMenu(false)}
+                    className="block px-4 py-2.5 text-sm text-text-secondary hover:bg-surface-1 hover:text-text-primary">
+                    📥 Importar canales
+                  </NavLink>
+                  <NavLink to="/export" onClick={() => setShowMenu(false)}
+                    className="block px-4 py-2.5 text-sm text-text-secondary hover:bg-surface-1 hover:text-text-primary">
+                    📤 Exportar datos
+                  </NavLink>
+                  <NavLink to="/report" onClick={() => setShowMenu(false)}
+                    className="block px-4 py-2.5 text-sm text-text-secondary hover:bg-surface-1 hover:text-text-primary">
+                    📊 Informe semanal
+                  </NavLink>
+                  <button onClick={() => { setShowMenu(false); signOut(); }}
+                    className="w-full text-left px-4 py-2.5 text-sm text-red-500 hover:bg-surface-1">
+                    Cerrar sesión
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
-      <main className="app-content px-4 pt-4 pb-4"><Outlet /></main>
+      <main className="app-content px-4 pt-4 pb-4">
+        <Outlet />
+      </main>
 
-      <nav className="bottom-nav border-t border-surface-3">
-        <div className="flex justify-around py-2 px-2">
-          {[...baseNavItems, ...(isManager ? [{ to: '/ranking', icon: Trophy, label: 'Ranking' }] : [])].map(({ to, icon: Icon, label }) => (
-            <NavLink key={to} to={to}
-              className={({ isActive }) => `flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors ${isActive ? 'text-brand-500' : 'text-text-muted hover:text-text-secondary'}`}>
-              <Icon size={20} strokeWidth={2} />
-              <span className="text-[10px] font-semibold">{label}</span>
-            </NavLink>
-          ))}
+      {/* Assistant overlay */}
+      {showAssistant && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-surface-0" style={{ top: 56 }}>
+          <Suspense fallback={
+            <div className="flex items-center justify-center flex-1">
+              <div className="animate-spin text-brand-500"><Sparkles size={24} /></div>
+            </div>
+          }>
+            <div className="flex-1 overflow-hidden px-4 pt-4 pb-4">
+              <AssistantPage />
+            </div>
+          </Suspense>
         </div>
-      </nav>
+      )}
+
+      {!showAssistant && (
+        <nav className="bottom-nav border-t border-surface-3">
+          <div className="flex justify-around py-2 px-2">
+            {[...baseNavItems, ...(isManager ? [{ to: '/ranking', icon: Trophy, label: 'Ranking' }] : [])].map(({ to, icon: Icon, label }) => (
+              <NavLink key={to} to={to}
+                className={({ isActive }) => `flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors ${isActive ? 'text-brand-500' : 'text-text-muted hover:text-text-secondary'}`}>
+                <Icon size={20} strokeWidth={2} />
+                <span className="text-[10px] font-semibold">{label}</span>
+              </NavLink>
+            ))}
+          </div>
+        </nav>
+      )}
     </div>
   );
 }
