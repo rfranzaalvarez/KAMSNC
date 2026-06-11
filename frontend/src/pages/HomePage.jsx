@@ -21,7 +21,6 @@ const TYPE_CONFIG = {
 export default function HomePage() {
   const { user, profile } = useAuthContext();
   const [firstLoad, setFirstLoad] = useState(true);
-  const [stats, setStats] = useState({ today: 0, week: 0, weekTarget: 12, pipeline: 0 });
   const [alerts, setAlerts] = useState([]);
   const [todayVisits, setTodayVisits] = useState([]);
   const [todayPlanned, setTodayPlanned] = useState([]);
@@ -34,12 +33,8 @@ export default function HomePage() {
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
       const pad = (n) => String(n).padStart(2, '0');
       const todayKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-      const mondayStart = (() => { const d = new Date(now); const day = d.getDay() || 7; d.setDate(d.getDate() - day + 1); d.setHours(0,0,0,0); return d.toISOString(); })();
 
-      const [r1, r2, r3, r4, r5, r6, r7] = await Promise.allSettled([
-        supabase.from('visits').select('id', { count: 'exact', head: true }).eq('kam_id', user.id).gte('checkin_at', todayStart),
-        supabase.from('visits').select('id', { count: 'exact', head: true }).eq('kam_id', user.id).gte('checkin_at', mondayStart),
-        supabase.from('channels').select('id', { count: 'exact', head: true }).eq('assigned_to', user.id).in('pipeline_stage', ['first_contact','proposal','negotiation','onboarding']),
+      const [r4, r5, r6, r7] = await Promise.allSettled([
         supabase.from('alerts').select('*, channels(name)').eq('user_id', user.id).eq('is_dismissed', false).order('created_at', { ascending: false }).limit(10),
         supabase.from('visits').select('*, channels(name)').eq('kam_id', user.id).gte('checkin_at', todayStart).order('checkin_at', { ascending: false }),
         // Planned visits for today
@@ -49,9 +44,7 @@ export default function HomePage() {
       ]);
 
       if (!mountedRef.current) return;
-      const gc = (r) => r.status === 'fulfilled' ? (r.value.count || 0) : 0;
       const gd = (r) => r.status === 'fulfilled' ? (r.value.data || []) : [];
-      setStats({ today: gc(r1), week: gc(r2), weekTarget: 12, pipeline: gc(r3) });
       setAlerts(gd(r4));
       setTodayVisits(gd(r5));
 
@@ -113,8 +106,8 @@ export default function HomePage() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-xl font-extrabold tracking-tight">{greeting}{firstName ? `, ${firstName}` : ''}</h1>
-        <p className="text-xs text-text-secondary">{new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+        <h1 className="text-2xl font-extrabold tracking-tight">{greeting}{firstName ? `, ${firstName}` : ''}</h1>
+        <p className="text-sm text-text-secondary mt-0.5">{new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
       </div>
 
       {/* Alertas */}
@@ -143,22 +136,6 @@ export default function HomePage() {
           })}
         </div>
       )}
-
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-2">
-        <div className="bg-surface-1 border border-surface-3 rounded-xl p-3 text-center">
-          <div className="text-xl font-extrabold text-brand-500">{stats.today}</div>
-          <div className="text-[9px] text-text-secondary uppercase tracking-wider font-semibold mt-0.5">Hoy</div>
-        </div>
-        <div className="bg-surface-1 border border-surface-3 rounded-xl p-3 text-center">
-          <div className="text-xl font-extrabold text-navy-500">{stats.week}<span className="text-sm text-text-muted">/{stats.weekTarget}</span></div>
-          <div className="text-[9px] text-text-secondary uppercase tracking-wider font-semibold mt-0.5">Semana</div>
-        </div>
-        <div className="bg-surface-1 border border-surface-3 rounded-xl p-3 text-center">
-          <div className="text-xl font-extrabold text-green-600">{stats.pipeline}</div>
-          <div className="text-[9px] text-text-secondary uppercase tracking-wider font-semibold mt-0.5">Pipeline</div>
-        </div>
-      </div>
 
       <CheckInButton />
 
@@ -204,7 +181,7 @@ export default function HomePage() {
       {/* Visitas de hoy (realizadas) */}
       <div>
         <div className="flex items-center justify-between mb-2.5">
-          <h2 className="text-sm font-bold">Visitas de hoy</h2>
+          <h2 className="text-sm font-bold">Actividad de hoy</h2>
           <span className="text-[11px] text-text-secondary">{todayVisits.length} registradas</span>
         </div>
         {todayVisits.length === 0 ? (
