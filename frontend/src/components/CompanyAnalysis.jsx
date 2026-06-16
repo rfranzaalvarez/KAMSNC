@@ -1,12 +1,32 @@
 import { useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuthContext } from './AuthProvider';
-import { 
-  Shield, Loader2, RefreshCw, ChevronDown, ChevronUp, 
+import {
+  Shield, Loader2, RefreshCw, ChevronDown, ChevronUp,
   ExternalLink, Upload, FileText, Trash2, Download, Edit3, Check, X
 } from 'lucide-react';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || '';
+
+const STATUS_LABELS = {
+  pendiente_contacto: 'Pendiente contacto',
+  en_desarrollo:      'En desarrollo',
+  en_evaluacion:      'En evaluación',
+  en_proceso_alta:    'En proceso de alta',
+  activo:             'Activo',
+  rechazado:          'Rechazado',
+  cierre_sin_acuerdo: 'Cierre sin acuerdo',
+};
+
+const STAGE_LABELS = {
+  lead:           'Lead',
+  first_contact:  'Primer contacto',
+  proposal:       'Propuesta',
+  negotiation:    'Negociación',
+  onboarding:     'En proceso alta',
+  active:         'Activo',
+  closed_no_deal: 'Sin acuerdo',
+};
 
 function CifInlineEditor({ channel, onChannelUpdate }) {
   const [editing, setEditing] = useState(false);
@@ -58,7 +78,6 @@ export default function CompanyAnalysis({ channel, onChannelUpdate }) {
   const { user } = useAuthContext();
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [expanded, setExpanded] = useState(true);
   const [error, setError] = useState('');
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef(null);
@@ -77,19 +96,25 @@ DATOS DE LA EMPRESA:
 - Página web: ${channel.website || 'No disponible'}
 - Valoración Google: ${channel.google_rating != null ? channel.google_rating + '/5' : 'No disponible'}
 - Ciudad: ${channel.city || 'No disponible'}
+- Comunidad Autónoma: ${channel.comunidad_autonoma || 'No disponible'}
 - Dirección: ${channel.address || 'No disponible'}
 - Contacto: ${channel.contact_name || 'No disponible'}
-- Estado en CRM: ${channel.status}
-- Fase pipeline: ${channel.pipeline_stage}
-- Tipo de canal: ${channel.channel_type || 'No especificado'}
+- Estado en CRM: ${STATUS_LABELS[channel.status] || channel.status || 'No especificado'}
+- Fase pipeline: ${STAGE_LABELS[channel.pipeline_stage] || channel.pipeline_stage || 'No especificada'}
 - Tiene informe económico adjunto: ${channel.informe_economico_url ? 'Sí' : 'No'}
+
+DATOS CAES:
+- Tipo de canal CAES: ${channel.tipo_canal_caes || 'No especificado'}
+- Sectores CAE objetivo: ${Array.isArray(channel.sector_cae) && channel.sector_cae.length > 0 ? channel.sector_cae.join(', ') : 'No especificados'}
+- Potencial CAES: ${channel.potencial_caes || 'No evaluado'}
+- Potencial Venta Energía: ${channel.potencial_energia || 'No evaluado'}
 `;
 
       const response = await fetch(`${BACKEND_URL}/api/assistant`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          system: `Eres un analista de riesgo comercial experto. Tu trabajo es evaluar la calidad y fiabilidad de empresas/canales para Naturgy.
+          system: `Eres un analista de riesgo comercial experto. Tu trabajo es evaluar la calidad y fiabilidad de empresas/canales para Naturgy en el contexto del programa CAES (Certificados de Ahorro Energético).
 
 Analiza los datos proporcionados y genera un informe de calidad en JSON puro (sin markdown, sin backticks):
 {
@@ -110,8 +135,11 @@ Criterios de scoring:
 - Contacto identificado: +10 pts
 - Informe económico adjunto: +20 pts
 - Estado activo o en desarrollo: +10 pts
-- Pipeline avanzado: +10 pts
+- Pipeline avanzado (propuesta o superior): +10 pts
+- Tipo de canal CAES especificado: +5 pts
+- Potencial CAES Alto o Muy Alto: +5 pts
 
+Ten en cuenta el tipo de canal CAES y los sectores objetivo para personalizar el análisis de riesgo y las recomendaciones.
 Sé concreto y práctico. Si faltan datos, indícalo claramente y ajusta el scoring a la baja.`,
           messages: [
             { role: 'user', content: `Analiza la calidad y riesgo de esta empresa:\n${context}` }
@@ -171,10 +199,6 @@ Sé concreto y práctico. Si faltan datos, indícalo claramente y ajusta el scor
         .upload(path, file);
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage
-        .from('channel-documents')
-        .getPublicUrl(path);
-
       const { error: updateError } = await supabase
         .from('channels')
         .update({
@@ -210,11 +234,7 @@ Sé concreto y práctico. Si faltan datos, indícalo claramente y ajusta el scor
       }).eq('id', channel.id);
 
       if (onChannelUpdate) {
-        onChannelUpdate({
-          ...channel,
-          informe_economico_url: null,
-          informe_economico_name: null,
-        });
+        onChannelUpdate({ ...channel, informe_economico_url: null, informe_economico_name: null });
       }
     } catch (err) {
       console.error('Error eliminando informe:', err);
@@ -259,7 +279,7 @@ Sé concreto y práctico. Si faltan datos, indícalo claramente y ajusta el scor
 
       <div className="p-4 space-y-4">
 
-        {/* Informe Económico - Upload */}
+        {/* Informe Económico */}
         <div>
           <div className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-2">Informe Económico (Informa)</div>
           {channel?.informe_economico_url ? (
@@ -285,9 +305,9 @@ Sé concreto y práctico. Si faltan datos, indícalo claramente y ajusta el scor
                 className="hidden"
               />
               {uploading ? (
-                <><Loader2 size={14} className="animate-spin text-brand-500" /> <span className="text-xs text-brand-500">Subiendo...</span></>
+                <><Loader2 size={14} className="animate-spin text-brand-500" /><span className="text-xs text-brand-500">Subiendo...</span></>
               ) : (
-                <><Upload size={14} className="text-text-muted" /> <span className="text-xs text-text-muted">Adjuntar informe (PDF, Excel o imagen)</span></>
+                <><Upload size={14} className="text-text-muted" /><span className="text-xs text-text-muted">Adjuntar informe (PDF, Excel o imagen)</span></>
               )}
             </label>
           )}
@@ -310,7 +330,7 @@ Sé concreto y práctico. Si faltan datos, indícalo claramente y ajusta el scor
           <CifInlineEditor channel={channel} onChannelUpdate={onChannelUpdate} />
         )}
 
-        {/* Botón de análisis IA */}
+        {/* Botón análisis IA */}
         {!analysis && !loading && (
           <button
             onClick={generateAnalysis}
@@ -338,7 +358,7 @@ Sé concreto y práctico. Si faltan datos, indícalo claramente y ajusta el scor
           </div>
         )}
 
-        {/* Resultado del análisis */}
+        {/* Resultado */}
         {analysis && (
           <div className="space-y-3">
             {/* Scoring */}
