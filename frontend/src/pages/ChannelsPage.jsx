@@ -14,33 +14,53 @@ import AddressFields from '../components/AddressFields';
 import { useChannelTypes } from '../hooks/useChannelTypes';
 import { validatePhone, validateEmail, validateCIF } from '../lib/validators';
 import {
+  STATUS_CONFIG, PIPELINE_CONFIG,
+  TIPO_CANAL_CAES_OPTIONS, SECTOR_CAE_OPTIONS,
+  POTENCIAL_OPTIONS, COMUNIDADES_AUTONOMAS,
+  LEAD_SOURCE_OPTIONS,
+} from '../lib/crmConstants';
+import {
   Search, Plus, Building2, Phone, Mail, MapPin,
   ChevronRight, User, X, Check, Loader2, Edit3, Upload, ArrowRightLeft
 } from 'lucide-react';
 
-const STATUS_CONFIG = {
-  prospect: { label: 'Prospecto', bg: 'bg-gray-500/20', text: 'text-gray-400', border: 'border-gray-500/30' },
-  developing: { label: 'En desarrollo', bg: 'bg-amber-500/20', text: 'text-amber-400', border: 'border-amber-500/30' },
-  active: { label: 'Activo', bg: 'bg-green-500/20', text: 'text-green-400', border: 'border-green-500/30' },
-  inactive: { label: 'Inactivo', bg: 'bg-red-500/20', text: 'text-red-400', border: 'border-red-500/30' },
-};
-
-const PIPELINE_CONFIG = {
-  lead: 'Lead',
-  first_contact: 'Primer contacto',
-  proposal: 'Propuesta',
-  negotiation: 'Negociación',
-  onboarding: 'Alta',
-  active: 'Activo',
-};
+// ============ MULTISELECT SECTOR CAE ============
+function SectorCAEMultiselect({ value = [], onChange }) {
+  // value es array de strings
+  const toggle = (opt) => {
+    if (value.includes(opt)) {
+      onChange(value.filter(v => v !== opt));
+    } else {
+      onChange([...value, opt]);
+    }
+  };
+  return (
+    <div className="flex flex-wrap gap-1.5 mt-1">
+      {SECTOR_CAE_OPTIONS.map(opt => (
+        <button
+          key={opt}
+          type="button"
+          onClick={() => toggle(opt)}
+          className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors ${
+            value.includes(opt)
+              ? 'bg-brand-500 text-white border-brand-500'
+              : 'bg-surface-0 text-text-secondary border-surface-3 hover:border-brand-400'
+          }`}
+        >
+          {opt}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 // ============ LISTADO DE CANALES ============
 function ChannelList({ channels, loading, onSelect, filter, setFilter, search, setSearch, typeMap, isManager, onBulkReassign }) {
   const filters = [
     { key: 'all', label: 'Todos', count: channels.length },
-    { key: 'active', label: 'Activos', count: channels.filter(c => c.status === 'active').length },
-    { key: 'developing', label: 'En desarrollo', count: channels.filter(c => c.status === 'developing').length },
-    { key: 'prospect', label: 'Prospectos', count: channels.filter(c => c.status === 'prospect').length },
+    { key: 'activo', label: 'Activos', count: channels.filter(c => c.status === 'activo').length },
+    { key: 'en_desarrollo', label: 'En desarrollo', count: channels.filter(c => c.status === 'en_desarrollo').length },
+    { key: 'pendiente_contacto', label: 'Pendientes', count: channels.filter(c => c.status === 'pendiente_contacto').length },
   ];
 
   const filtered = channels
@@ -134,7 +154,7 @@ function ChannelList({ channels, loading, onSelect, filter, setFilter, search, s
       )}
 
       {!loading && filtered.map(channel => {
-        const status = STATUS_CONFIG[channel.status] || STATUS_CONFIG.prospect;
+        const status = STATUS_CONFIG[channel.status] || STATUS_CONFIG.pendiente_contacto;
         const type = typeMap[channel.channel_type] || channel.channel_type || 'Otro';
         const daysSinceVisit = channel.last_visit_at
           ? Math.floor((Date.now() - new Date(channel.last_visit_at).getTime()) / (1000 * 60 * 60 * 24))
@@ -199,22 +219,7 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
         .eq('id', channelId)
         .single();
       setChannel(ch);
-      setEditForm({
-        name: ch?.name || '',
-        channel_type: ch?.channel_type || 'energia_mayorista',
-        contact_name: ch?.contact_name || '',
-        phone: ch?.phone || '',
-        email: ch?.email || '',
-        cif: ch?.cif || '',
-        website: ch?.website || '',
-        google_rating: ch?.google_rating ?? '',
-        lead_source: ch?.lead_source || '',
-        address: ch?.address || '',
-        city: ch?.city || '',
-        province: ch?.province || '',
-        notes: ch?.notes || '',
-        status: ch?.status || 'prospect',
-      });
+      initForm(ch);
     } catch (err) {
       console.error(err);
     } finally {
@@ -222,23 +227,32 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
     }
   }
 
-  function startEdit() {
+  function initForm(ch) {
     setEditForm({
-      name: channel.name || '',
-      channel_type: channel.channel_type || 'energia_mayorista',
-      contact_name: channel.contact_name || '',
-      phone: channel.phone || '',
-      email: channel.email || '',
-      cif: channel.cif || '',
-      website: channel.website || '',
-      google_rating: channel.google_rating ?? '',
-      lead_source: channel.lead_source || '',
-      address: channel.address || '',
-      city: channel.city || '',
-      province: channel.province || '',
-      notes: channel.notes || '',
-      status: channel.status || 'prospect',
+      name: ch?.name || '',
+      channel_type: ch?.channel_type || 'energia_mayorista',
+      contact_name: ch?.contact_name || '',
+      phone: ch?.phone || '',
+      email: ch?.email || '',
+      cif: ch?.cif || '',
+      website: ch?.website || '',
+      google_rating: ch?.google_rating ?? '',
+      lead_source: ch?.lead_source || '',
+      address: ch?.address || '',
+      city: ch?.city || '',
+      province: ch?.province || '',
+      comunidad_autonoma: ch?.comunidad_autonoma || '',
+      tipo_canal_caes: ch?.tipo_canal_caes || '',
+      sector_cae: ch?.sector_cae || [],
+      potencial_caes: ch?.potencial_caes || '',
+      potencial_energia: ch?.potencial_energia || '',
+      notes: ch?.notes || '',
+      status: ch?.status || 'pendiente_contacto',
     });
+  }
+
+  function startEdit() {
+    initForm(channel);
     setEditMode(true);
     setEditError('');
   }
@@ -246,6 +260,10 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
   async function saveEdit() {
     if (!editForm.name.trim()) {
       setEditError('El nombre es obligatorio');
+      return;
+    }
+    if (!editForm.tipo_canal_caes) {
+      setEditError('El tipo de canal CAES es obligatorio');
       return;
     }
     setSaving(true);
@@ -266,6 +284,11 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
           address: editForm.address || null,
           city: editForm.city || null,
           province: editForm.province || null,
+          comunidad_autonoma: editForm.comunidad_autonoma || null,
+          tipo_canal_caes: editForm.tipo_canal_caes || null,
+          sector_cae: editForm.sector_cae?.length > 0 ? editForm.sector_cae : null,
+          potencial_caes: editForm.potencial_caes || null,
+          potencial_energia: editForm.potencial_energia || null,
           notes: editForm.notes || null,
           status: editForm.status,
         })
@@ -299,7 +322,7 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
     );
   }
 
-  const status = STATUS_CONFIG[channel.status] || STATUS_CONFIG.prospect;
+  const status = STATUS_CONFIG[channel.status] || STATUS_CONFIG.pendiente_contacto;
   const type = typeMap[channel.channel_type] || channel.channel_type || 'Otro';
   const pipeline = PIPELINE_CONFIG[channel.pipeline_stage] || '-';
 
@@ -322,27 +345,87 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
               <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3 text-xs text-red-600">{editError}</div>
             )}
             <div className="space-y-3">
+              {/* Nombre */}
               <div>
                 <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Nombre *</label>
                 <input type="text" value={editForm.name} onChange={(e) => updateField('name', e.target.value)}
                   className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500" />
               </div>
-              <div className="grid grid-cols-1 gap-3">
+
+              {/* Estado */}
+              <div>
+                <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Estado</label>
+                <select value={editForm.status} onChange={(e) => updateField('status', e.target.value)}
+                  className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500">
+                  {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
+                    <option key={key} value={key}>{cfg.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Tipo canal CAES */}
+              <div>
+                <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">
+                  Tipo de canal CAES *
+                </label>
+                <select value={editForm.tipo_canal_caes} onChange={(e) => updateField('tipo_canal_caes', e.target.value)}
+                  className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500">
+                  <option value="">Seleccionar...</option>
+                  {TIPO_CANAL_CAES_OPTIONS.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Sector CAE */}
+              <div>
+                <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Sector CAE objetivo</label>
+                <SectorCAEMultiselect value={editForm.sector_cae || []} onChange={(v) => updateField('sector_cae', v)} />
+              </div>
+
+              {/* Potencial */}
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Estado</label>
-                  <select value={editForm.status} onChange={(e) => updateField('status', e.target.value)}
+                  <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Potencial CAES</label>
+                  <select value={editForm.potencial_caes} onChange={(e) => updateField('potencial_caes', e.target.value)}
                     className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500">
-                    {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
-                      <option key={key} value={key}>{cfg.label}</option>
+                    <option value="">-</option>
+                    {POTENCIAL_OPTIONS.map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Potencial Energía</label>
+                  <select value={editForm.potencial_energia} onChange={(e) => updateField('potencial_energia', e.target.value)}
+                    className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500">
+                    <option value="">-</option>
+                    {POTENCIAL_OPTIONS.map(opt => (
+                      <option key={opt} value={opt}>{opt}</option>
                     ))}
                   </select>
                 </div>
               </div>
+
+              {/* Comunidad Autónoma */}
+              <div>
+                <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Comunidad Autónoma</label>
+                <select value={editForm.comunidad_autonoma} onChange={(e) => updateField('comunidad_autonoma', e.target.value)}
+                  className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500">
+                  <option value="">Seleccionar...</option>
+                  {COMUNIDADES_AUTONOMAS.map(ca => (
+                    <option key={ca} value={ca}>{ca}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Contacto */}
               <div>
                 <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Contacto</label>
                 <input type="text" value={editForm.contact_name} onChange={(e) => updateField('contact_name', e.target.value)}
                   placeholder="Nombre del contacto" className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500" />
               </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Teléfono</label>
@@ -355,6 +438,7 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
                     className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500" />
                 </div>
               </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">CIF</label>
@@ -367,41 +451,39 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
                     className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500">
                     <option value="">Seleccionar...</option>
                     <option value="no_tiene">No tiene</option>
-                    <option value="5">⭐ 5.0</option>
-                    <option value="4.5">⭐ 4.5</option>
-                    <option value="4">⭐ 4.0</option>
-                    <option value="3.5">⭐ 3.5</option>
-                    <option value="3">⭐ 3.0</option>
-                    <option value="2.5">⭐ 2.5</option>
-                    <option value="2">⭐ 2.0</option>
-                    <option value="1.5">⭐ 1.5</option>
-                    <option value="1">⭐ 1.0</option>
-                    <option value="0.5">⭐ 0.5</option>
+                    {['5','4.5','4','3.5','3','2.5','2','1.5','1','0.5'].map(v => (
+                      <option key={v} value={v}>⭐ {v}</option>
+                    ))}
                   </select>
                 </div>
               </div>
+
               <div>
                 <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Página web</label>
                 <input type="url" value={editForm.website} onChange={(e) => updateField('website', e.target.value)}
                   placeholder="https://www.ejemplo.com" className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500" />
               </div>
+
+              {/* Origen del lead */}
               <div>
                 <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Origen del lead</label>
                 <select value={editForm.lead_source} onChange={(e) => updateField('lead_source', e.target.value)}
                   className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500">
                   <option value="">Seleccionar...</option>
-                  <option value="inbound_web">Inbound - Web Naturgy</option>
-                  <option value="outbound_navigator">Outbound - Sales Navigator</option>
-                  <option value="outbound_referidos">Outbound - Referidos otro canal</option>
-                  <option value="outbound_otros">Outbound - Otros</option>
+                  {LEAD_SOURCE_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
                 </select>
               </div>
+
               <AddressFields form={editForm} update={updateField} fieldClass="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500" />
+
               <div>
                 <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Notas</label>
                 <textarea value={editForm.notes} onChange={(e) => updateField('notes', e.target.value)}
                   rows={2} className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm resize-none focus:outline-none focus:border-brand-500" />
               </div>
+
               <div className="flex gap-2 pt-1">
                 <button onClick={saveEdit} disabled={saving}
                   className="flex-1 py-2.5 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-bold rounded-xl text-sm transition-colors flex items-center justify-center gap-1.5">
@@ -423,7 +505,7 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
               </div>
               <div className="flex-1">
                 <h2 className="text-lg font-extrabold tracking-tight">{channel.name}</h2>
-                <div className="flex items-center gap-2 mt-1">
+                <div className="flex flex-wrap items-center gap-2 mt-1">
                   <span className="text-xs text-text-secondary">{type}</span>
                   <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${status.bg} ${status.text}`}>
                     {status.label}
@@ -439,7 +521,52 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
               </button>
             </div>
 
-            <div className="space-y-2 mt-4">
+            {/* Datos CAES */}
+            {(channel.tipo_canal_caes || channel.potencial_caes || channel.potencial_energia || channel.comunidad_autonoma) && (
+              <div className="bg-brand-500/5 border border-brand-500/15 rounded-xl p-3 mb-3 space-y-1.5">
+                <div className="text-[10px] font-bold text-brand-400 uppercase tracking-wider mb-2">CAES</div>
+                {channel.tipo_canal_caes && (
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-text-muted w-20 flex-shrink-0">Tipo canal</span>
+                    <span className="text-text-primary font-semibold">{channel.tipo_canal_caes}</span>
+                  </div>
+                )}
+                {channel.comunidad_autonoma && (
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-text-muted w-20 flex-shrink-0">CCAA</span>
+                    <span className="text-text-primary font-semibold">{channel.comunidad_autonoma}</span>
+                  </div>
+                )}
+                {(channel.potencial_caes || channel.potencial_energia) && (
+                  <div className="flex items-center gap-4 text-xs">
+                    {channel.potencial_caes && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-text-muted">Potencial CAES</span>
+                        <PotencialBadge value={channel.potencial_caes} />
+                      </div>
+                    )}
+                    {channel.potencial_energia && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-text-muted">Energía</span>
+                        <PotencialBadge value={channel.potencial_energia} />
+                      </div>
+                    )}
+                  </div>
+                )}
+                {channel.sector_cae?.length > 0 && (
+                  <div>
+                    <div className="text-[10px] text-text-muted mb-1">Sectores CAE</div>
+                    <div className="flex flex-wrap gap-1">
+                      {channel.sector_cae.map(s => (
+                        <span key={s} className="px-2 py-0.5 bg-brand-500/10 text-brand-400 rounded-full text-[10px] font-semibold">{s}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="space-y-2 mt-3">
               {channel.contact_name && (
                 <div className="flex items-center gap-2.5 text-sm">
                   <User size={14} className="text-text-muted flex-shrink-0" />
@@ -480,26 +607,18 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
                   <span className="text-brand-400">{channel.website}</span>
                 </a>
               )}
-              {channel.google_rating != null ? (
+              {channel.google_rating != null && (
                 <div className="flex items-center gap-2.5 text-sm">
                   <span className="text-text-muted flex-shrink-0 text-xs">⭐</span>
                   <span className="text-text-secondary">{channel.google_rating} / 5</span>
-                </div>
-              ) : channel.google_rating === null && channel.cif && (
-                <div className="flex items-center gap-2.5 text-sm">
-                  <span className="text-text-muted flex-shrink-0 text-xs">⭐</span>
-                  <span className="text-text-muted">Sin valoración en Google</span>
                 </div>
               )}
               {channel.lead_source && (
                 <div className="flex items-center gap-2.5 text-sm">
                   <span className="text-text-muted flex-shrink-0 text-xs">📥</span>
-                  <span className="text-text-secondary">{{
-                    inbound_web: 'Inbound - Web Naturgy',
-                    outbound_navigator: 'Outbound - Sales Navigator',
-                    outbound_referidos: 'Outbound - Referidos otro canal',
-                    outbound_otros: 'Outbound - Otros',
-                  }[channel.lead_source] || channel.lead_source}</span>
+                  <span className="text-text-secondary">
+                    {LEAD_SOURCE_OPTIONS.find(o => o.value === channel.lead_source)?.label || channel.lead_source}
+                  </span>
                 </div>
               )}
             </div>
@@ -529,7 +648,7 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
         <CompanyAnalysis channel={channel} onChannelUpdate={setChannel} />
       </div>
 
-      {/* Actividad del canal (timeline unificado: visitas + interacciones + notas) */}
+      {/* Actividad del canal */}
       <div className="mb-4">
         <ActivityTimeline channel={channel} />
       </div>
@@ -552,6 +671,21 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
   );
 }
 
+// Badge de potencial con color
+function PotencialBadge({ value }) {
+  const colors = {
+    'Bajo': 'bg-gray-500/20 text-gray-400',
+    'Medio': 'bg-amber-500/20 text-amber-400',
+    'Alto': 'bg-green-500/20 text-green-400',
+    'Muy Alto': 'bg-brand-500/20 text-brand-400',
+  };
+  return (
+    <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${colors[value] || 'bg-surface-2 text-text-muted'}`}>
+      {value}
+    </span>
+  );
+}
+
 // ============ FORMULARIO NUEVO CANAL (WIZARD 3 PASOS) ============
 function NewChannelForm({ onBack, onSaved, types }) {
   const { user } = useAuthContext();
@@ -564,7 +698,10 @@ function NewChannelForm({ onBack, onSaved, types }) {
   const [form, setForm] = useState({
     name: '', contact_name: '', phone: '', email: '',
     cif: '', website: '', google_rating: '', lead_source: '',
-    address: '', city: '', province: '', notes: '',
+    address: '', city: '', province: '',
+    comunidad_autonoma: '', tipo_canal_caes: '',
+    sector_cae: [], potencial_caes: '', potencial_energia: '',
+    notes: '',
   });
 
   const update = (field, value) => {
@@ -578,6 +715,7 @@ function NewChannelForm({ onBack, onSaved, types }) {
     setError('');
     if (step === 1) {
       if (!form.name.trim()) { setError('El nombre del canal es obligatorio'); return; }
+      if (!form.tipo_canal_caes) { setError('El tipo de canal CAES es obligatorio'); return; }
       const phoneV = validatePhone(form.phone);
       const emailV = validateEmail(form.email);
       const cifV = validateCIF(form.cif);
@@ -606,7 +744,13 @@ function NewChannelForm({ onBack, onSaved, types }) {
         google_rating: form.google_rating && form.google_rating !== 'no_tiene' ? parseFloat(form.google_rating) : null,
         lead_source: form.lead_source || null,
         address: form.address || null, city: form.city || null, province: form.province || null,
-        notes: form.notes || null, assigned_to: user.id, status: 'prospect', pipeline_stage: 'lead',
+        comunidad_autonoma: form.comunidad_autonoma || null,
+        tipo_canal_caes: form.tipo_canal_caes || null,
+        sector_cae: form.sector_cae?.length > 0 ? form.sector_cae : null,
+        potencial_caes: form.potencial_caes || null,
+        potencial_energia: form.potencial_energia || null,
+        notes: form.notes || null,
+        assigned_to: user.id, status: 'pendiente_contacto', pipeline_stage: 'lead',
       }).select().single();
       if (insertError) throw insertError;
       const classInserts = classifications.map(c => ({ channel_id: data.id, classification_id: c.classification_id, custom_text: c.custom_text || null }));
@@ -648,10 +792,49 @@ function NewChannelForm({ onBack, onSaved, types }) {
             <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Nombre del canal *</label>
             <input type="text" value={form.name} onChange={(e) => update('name', e.target.value)} placeholder="Nombre del canal o empresa" className={fieldClass} autoFocus />
           </div>
+
+          {/* Tipo canal CAES — obligatorio */}
+          <div>
+            <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">
+              Tipo de canal CAES *
+            </label>
+            <select value={form.tipo_canal_caes} onChange={(e) => update('tipo_canal_caes', e.target.value)} className={fieldClass}>
+              <option value="">Seleccionar...</option>
+              {TIPO_CANAL_CAES_OPTIONS.map(opt => (
+                <option key={opt} value={opt}>{opt}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Sector CAE */}
+          <div>
+            <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Sector CAE objetivo</label>
+            <SectorCAEMultiselect value={form.sector_cae} onChange={(v) => update('sector_cae', v)} />
+          </div>
+
+          {/* Potencial */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Potencial CAES</label>
+              <select value={form.potencial_caes} onChange={(e) => update('potencial_caes', e.target.value)} className={fieldClass}>
+                <option value="">-</option>
+                {POTENCIAL_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Potencial Energía</label>
+              <select value={form.potencial_energia} onChange={(e) => update('potencial_energia', e.target.value)} className={fieldClass}>
+                <option value="">-</option>
+                {POTENCIAL_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+              </select>
+            </div>
+          </div>
+
           <div>
             <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Persona de contacto</label>
             <input type="text" value={form.contact_name} onChange={(e) => update('contact_name', e.target.value)} placeholder="Nombre del contacto principal" className={fieldClass} />
           </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Teléfono</label>
@@ -664,6 +847,7 @@ function NewChannelForm({ onBack, onSaved, types }) {
               {fieldErrors.email && <p className="text-[10px] text-red-500 mt-0.5">{fieldErrors.email}</p>}
             </div>
           </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">CIF</label>
@@ -675,27 +859,28 @@ function NewChannelForm({ onBack, onSaved, types }) {
               <select value={form.google_rating} onChange={(e) => update('google_rating', e.target.value)} className={fieldClass}>
                 <option value="">Seleccionar...</option>
                 <option value="no_tiene">No tiene</option>
-                <option value="5">⭐ 5.0</option><option value="4.5">⭐ 4.5</option><option value="4">⭐ 4.0</option>
-                <option value="3.5">⭐ 3.5</option><option value="3">⭐ 3.0</option><option value="2.5">⭐ 2.5</option>
-                <option value="2">⭐ 2.0</option><option value="1.5">⭐ 1.5</option><option value="1">⭐ 1.0</option>
-                <option value="0.5">⭐ 0.5</option>
+                {['5','4.5','4','3.5','3','2.5','2','1.5','1','0.5'].map(v => (
+                  <option key={v} value={v}>⭐ {v}</option>
+                ))}
               </select>
             </div>
           </div>
+
           <div>
             <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Página web</label>
             <input type="url" value={form.website} onChange={(e) => update('website', e.target.value)} placeholder="https://www.ejemplo.com" className={fieldClass} />
           </div>
+
           <div>
             <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Origen del lead</label>
             <select value={form.lead_source} onChange={(e) => update('lead_source', e.target.value)} className={fieldClass}>
               <option value="">Seleccionar...</option>
-              <option value="inbound_web">Inbound - Web Naturgy</option>
-              <option value="outbound_navigator">Outbound - Sales Navigator</option>
-              <option value="outbound_referidos">Outbound - Referidos otro canal</option>
-              <option value="outbound_otros">Outbound - Otros</option>
+              {LEAD_SOURCE_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
             </select>
           </div>
+
           <button onClick={nextStep} className="w-full py-3 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl transition-colors mt-2">Siguiente →</button>
         </div>
       )}
@@ -714,15 +899,38 @@ function NewChannelForm({ onBack, onSaved, types }) {
       {/* PASO 3: Ubicación y notas */}
       {step === 3 && (
         <div className="space-y-3">
+          {/* Comunidad Autónoma — aquí por relevancia geográfica */}
+          <div>
+            <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Comunidad Autónoma</label>
+            <select value={form.comunidad_autonoma} onChange={(e) => update('comunidad_autonoma', e.target.value)} className={fieldClass}>
+              <option value="">Seleccionar...</option>
+              {COMUNIDADES_AUTONOMAS.map(ca => (
+                <option key={ca} value={ca}>{ca}</option>
+              ))}
+            </select>
+          </div>
+
           <AddressFields form={form} update={update} fieldClass={fieldClass} />
+
           <div>
             <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Notas</label>
             <textarea value={form.notes} onChange={(e) => update('notes', e.target.value)} placeholder="Notas sobre el canal..." rows={3} className={`${fieldClass} resize-none`} />
           </div>
+
+          {/* Resumen */}
           <div className="bg-surface-1 border border-surface-3 rounded-xl p-3 mt-2">
             <div className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-2">Resumen</div>
             <div className="space-y-1 text-xs text-text-secondary">
               <p><span className="font-semibold text-text-primary">{form.name}</span></p>
+              {form.tipo_canal_caes && <p>🏷️ {form.tipo_canal_caes}</p>}
+              {(form.potencial_caes || form.potencial_energia) && (
+                <p>
+                  {form.potencial_caes ? `CAES: ${form.potencial_caes}` : ''}
+                  {form.potencial_caes && form.potencial_energia ? ' · ' : ''}
+                  {form.potencial_energia ? `Energía: ${form.potencial_energia}` : ''}
+                </p>
+              )}
+              {form.sector_cae?.length > 0 && <p>Sectores: {form.sector_cae.join(', ')}</p>}
               {form.contact_name && <p>👤 {form.contact_name} {form.phone ? `· ${form.phone}` : ''}</p>}
               {form.cif && <p>CIF: {form.cif}</p>}
               {classifications.length > 0 && (
@@ -732,9 +940,10 @@ function NewChannelForm({ onBack, onSaved, types }) {
                   ))}
                 </div>
               )}
-              {form.city && <p>📍 {form.city}{form.province ? ` (${form.province})` : ''}{form.address ? ` · ${form.address}` : ''}</p>}
+              {form.comunidad_autonoma && <p>📍 {form.comunidad_autonoma}{form.city ? ` · ${form.city}` : ''}</p>}
             </div>
           </div>
+
           <div className="flex gap-2 mt-2">
             <button onClick={prevStep} className="flex-1 py-3 border border-surface-3 text-text-secondary font-semibold rounded-xl text-sm hover:bg-surface-2 transition-colors">← Atrás</button>
             <button onClick={handleSave} disabled={saving} className="flex-[2] py-3 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2">
@@ -747,7 +956,7 @@ function NewChannelForm({ onBack, onSaved, types }) {
   );
 }
 
-// ============ PÁGINA PRINCIPAL DE CANALES ============
+// ============ PÁGINA PRINCIPAL ============
 export default function ChannelsPage() {
   const { user, isManager } = useAuthContext();
   const { types, typeMap } = useChannelTypes();
@@ -759,14 +968,12 @@ export default function ChannelsPage() {
   const [search, setSearch] = useState('');
   const [showBulkReassign, setShowBulkReassign] = useState(false);
 
-  // Leer parámetro ?detail=ID de la URL (deep link desde Pipeline)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const detailId = params.get('detail');
     if (detailId) {
       setSelectedId(detailId);
       setView('detail');
-      // Limpiar la URL sin recargar
       window.history.replaceState({}, '', '/channels');
     }
   }, []);
