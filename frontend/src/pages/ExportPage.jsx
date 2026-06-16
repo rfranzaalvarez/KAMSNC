@@ -8,7 +8,7 @@ const EXPORTS = [
   {
     id: 'channels',
     label: 'Canales',
-    description: 'Todos tus canales con contacto, tipo, estado y ciudad',
+    description: 'Todos tus canales con contacto, tipo, estado, CAES y ciudad',
     icon: Building2,
     color: 'text-blue-600',
     bg: 'bg-blue-50',
@@ -31,19 +31,46 @@ const EXPORTS = [
   },
 ];
 
-const TYPE_LABELS = {
-  distributor: 'Distribuidor', installer: 'Instalador', reseller: 'Revendedor',
-  commercial: 'Comercializadora', other: 'Otro',
-};
 const STATUS_LABELS = {
-  prospect: 'Prospecto', developing: 'En desarrollo', active: 'Activo', inactive: 'Inactivo',
+  pendiente_contacto: 'Pendiente contacto',
+  en_desarrollo:      'En desarrollo',
+  en_evaluacion:      'En evaluación',
+  en_proceso_alta:    'En proceso de alta',
+  activo:             'Activo',
+  rechazado:          'Rechazado',
+  cierre_sin_acuerdo: 'Cierre sin acuerdo',
 };
+
 const STAGE_LABELS = {
-  lead: 'Lead', first_contact: 'Primer contacto', proposal: 'Propuesta',
-  negotiation: 'Negociación', onboarding: 'Alta', active: 'Activo',
+  lead:           'Lead',
+  first_contact:  'Primer contacto',
+  proposal:       'Propuesta',
+  negotiation:    'Negociación',
+  onboarding:     'En proceso alta',
+  active:         'Activo',
+  closed_no_deal: 'Sin acuerdo',
 };
+
 const RESULT_LABELS = {
-  positive: 'Positiva', neutral: 'Neutral', negative: 'Negativa',
+  positive: 'Positiva',
+  neutral:  'Neutral',
+  negative: 'Negativa',
+};
+
+const LEAD_SOURCE_LABELS = {
+  evento:               'Evento',
+  congreso:             'Congreso',
+  webinar:              'Webinar',
+  linkedin_sales_navigator: 'LinkedIn/Sales Navigator',
+  recomendacion_partner: 'Recomendación partner',
+  industrial:           'Industrial',
+  generacion_distribuida: 'Generación Distribuida',
+  canal_naturgy:        'Canal Naturgy',
+  kam:                  'KAM',
+  asociacion_sectorial: 'Asociación sectorial',
+  fabricante:           'Fabricante',
+  solicitud_directa:    'Solicitud directa del canal',
+  otros:                'Otros',
 };
 
 export default function ExportPage() {
@@ -69,18 +96,26 @@ export default function ExportPage() {
           if (error) throw error;
 
           data = (channels || []).map(ch => ({
-            'Nombre': ch.name,
-            'Tipo': TYPE_LABELS[ch.channel_type] || ch.channel_type,
-            'Estado': STATUS_LABELS[ch.status] || ch.status,
-            'Fase Pipeline': STAGE_LABELS[ch.pipeline_stage] || ch.pipeline_stage,
-            'Contacto': ch.contact_name || '',
-            'Teléfono': ch.phone || '',
-            'Email': ch.email || '',
-            'Dirección': ch.address || '',
-            'Ciudad': ch.city || '',
-            'Código Postal': ch.postal_code || '',
-            'Notas': ch.notes || '',
-            'Creado': ch.created_at ? new Date(ch.created_at).toLocaleDateString('es-ES') : '',
+            'Nombre':              ch.name,
+            'Estado':              STATUS_LABELS[ch.status] || ch.status || '',
+            'Fase Pipeline':       STAGE_LABELS[ch.pipeline_stage] || ch.pipeline_stage || '',
+            'Tipo Canal CAES':     ch.tipo_canal_caes || '',
+            'Sector CAE':          Array.isArray(ch.sector_cae) ? ch.sector_cae.join(', ') : (ch.sector_cae || ''),
+            'Potencial CAES':      ch.potencial_caes || '',
+            'Potencial Energía':   ch.potencial_energia || '',
+            'Comunidad Autónoma':  ch.comunidad_autonoma || '',
+            'Contacto':            ch.contact_name || '',
+            'Teléfono':            ch.phone || '',
+            'Email':               ch.email || '',
+            'CIF':                 ch.cif || '',
+            'Web':                 ch.website || '',
+            'Valoración Google':   ch.google_rating != null ? ch.google_rating : '',
+            'Origen del lead':     LEAD_SOURCE_LABELS[ch.lead_source] || ch.lead_source || '',
+            'Dirección':           ch.address || '',
+            'Ciudad':              ch.city || '',
+            'Provincia':           ch.province || '',
+            'Notas':               ch.notes || '',
+            'Creado':              ch.created_at ? new Date(ch.created_at).toLocaleDateString('es-ES') : '',
           }));
           fileName = `canales_kamapp_${today}.xlsx`;
           break;
@@ -95,14 +130,14 @@ export default function ExportPage() {
           if (error) throw error;
 
           data = (visits || []).map(v => ({
-            'Canal': v.channels?.name || '',
-            'Fecha': v.checkin_at ? new Date(v.checkin_at).toLocaleDateString('es-ES') : '',
-            'Hora entrada': v.checkin_at ? new Date(v.checkin_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '',
-            'Hora salida': v.checkout_at ? new Date(v.checkout_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '',
+            'Canal':          v.channels?.name || '',
+            'Fecha':          v.checkin_at ? new Date(v.checkin_at).toLocaleDateString('es-ES') : '',
+            'Hora entrada':   v.checkin_at ? new Date(v.checkin_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '',
+            'Hora salida':    v.checkout_at ? new Date(v.checkout_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '',
             'Duración (min)': v.duration_minutes || '',
-            'Resultado': RESULT_LABELS[v.result] || v.result || '',
-            'Objetivo': v.objective || '',
-            'Notas': v.notes || '',
+            'Resultado':      RESULT_LABELS[v.result] || v.result || '',
+            'Objetivo':       v.objective || '',
+            'Notas':          v.notes || '',
             'Próximos pasos': v.next_steps || '',
           }));
           fileName = `visitas_kamapp_${today}.xlsx`;
@@ -111,26 +146,28 @@ export default function ExportPage() {
 
         case 'pipeline': {
           let query = supabase.from('channels')
-            .select('name, channel_type, pipeline_stage, status, contact_name, city, updated_at')
+            .select('name, pipeline_stage, status, tipo_canal_caes, potencial_caes, potencial_energia, comunidad_autonoma, contact_name, city, updated_at')
             .order('pipeline_stage');
           if (!isManager) query = query.eq('assigned_to', user.id);
 
           const { data: channels, error } = await query;
           if (error) throw error;
 
-          // Ordenar por fase del pipeline
-          const stageOrder = ['lead', 'first_contact', 'proposal', 'negotiation', 'onboarding', 'active'];
+          const stageOrder = ['lead', 'first_contact', 'proposal', 'negotiation', 'onboarding', 'active', 'closed_no_deal'];
           const sorted = (channels || []).sort((a, b) =>
             stageOrder.indexOf(a.pipeline_stage) - stageOrder.indexOf(b.pipeline_stage)
           );
 
           data = sorted.map(ch => ({
-            'Canal': ch.name,
-            'Fase': STAGE_LABELS[ch.pipeline_stage] || ch.pipeline_stage,
-            'Estado': STATUS_LABELS[ch.status] || ch.status,
-            'Tipo': TYPE_LABELS[ch.channel_type] || ch.channel_type,
-            'Contacto': ch.contact_name || '',
-            'Ciudad': ch.city || '',
+            'Canal':               ch.name,
+            'Fase':                STAGE_LABELS[ch.pipeline_stage] || ch.pipeline_stage || '',
+            'Estado':              STATUS_LABELS[ch.status] || ch.status || '',
+            'Tipo Canal CAES':     ch.tipo_canal_caes || '',
+            'Potencial CAES':      ch.potencial_caes || '',
+            'Potencial Energía':   ch.potencial_energia || '',
+            'Comunidad Autónoma':  ch.comunidad_autonoma || '',
+            'Contacto':            ch.contact_name || '',
+            'Ciudad':              ch.city || '',
             'Última actualización': ch.updated_at ? new Date(ch.updated_at).toLocaleDateString('es-ES') : '',
           }));
           fileName = `pipeline_kamapp_${today}.xlsx`;
@@ -144,10 +181,7 @@ export default function ExportPage() {
         return;
       }
 
-      // Generar Excel
       const ws = XLSX.utils.json_to_sheet(data);
-
-      // Ajustar anchos de columna
       const cols = Object.keys(data[0]).map(key => ({
         wch: Math.max(key.length, ...data.map(r => String(r[key] || '').length).slice(0, 50)) + 2,
       }));
@@ -220,6 +254,7 @@ export default function ExportPage() {
           <p>• Los archivos se descargan en formato <strong>.xlsx</strong> (Excel)</p>
           <p>• {isManager ? 'Como manager, se exportan los datos de todo tu equipo' : 'Se exportan solo tus datos asignados'}</p>
           <p>• Las columnas se ajustan automáticamente al contenido</p>
+          <p>• La exportación de canales incluye campos CAES: tipo, sector, potencial y CCAA</p>
         </div>
       </div>
     </div>
