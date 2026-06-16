@@ -4,19 +4,31 @@ import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../components/AuthProvider';
 import { useChannelTypes } from '../hooks/useChannelTypes';
 import { formatVolume, getVolumeConfig, VOLUME_UNITS } from '../components/VolumeEditor';
+import { PIPELINE_CONFIG } from '../lib/crmConstants';
 import {
   Loader2, ChevronRight, ChevronDown, X, Check, Filter,
   Calendar, Users, TrendingUp, Clock, Building2
 } from 'lucide-react';
 
 const STAGES = [
-  { key: 'lead', label: 'Lead', color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.25)' },
-  { key: 'first_contact', label: 'Contacto', color: '#60a5fa', bg: 'rgba(96,165,250,0.1)', border: 'rgba(96,165,250,0.25)' },
-  { key: 'proposal', label: 'Propuesta', color: '#a78bfa', bg: 'rgba(167,139,250,0.1)', border: 'rgba(167,139,250,0.25)' },
-  { key: 'negotiation', label: 'Negociación', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.25)' },
-  { key: 'onboarding', label: 'Alta', color: '#22c55e', bg: 'rgba(34,197,94,0.1)', border: 'rgba(34,197,94,0.25)' },
-  { key: 'active', label: 'Activo', color: '#10b981', bg: 'rgba(16,185,129,0.1)', border: 'rgba(16,185,129,0.25)' },
+  { key: 'lead',          label: 'Lead',          color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.25)' },
+  { key: 'first_contact', label: 'Contacto',       color: '#60a5fa', bg: 'rgba(96,165,250,0.1)',  border: 'rgba(96,165,250,0.25)'  },
+  { key: 'proposal',      label: 'Propuesta',      color: '#a78bfa', bg: 'rgba(167,139,250,0.1)', border: 'rgba(167,139,250,0.25)' },
+  { key: 'negotiation',   label: 'Negociación',    color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  border: 'rgba(245,158,11,0.25)'  },
+  { key: 'onboarding',    label: 'En proceso alta', color: '#f97316', bg: 'rgba(249,115,22,0.1)', border: 'rgba(249,115,22,0.25)'  },
+  { key: 'active',        label: 'Activo',          color: '#22c55e', bg: 'rgba(34,197,94,0.1)',  border: 'rgba(34,197,94,0.25)'   },
+  { key: 'closed_no_deal', label: 'Sin acuerdo',   color: '#ef4444', bg: 'rgba(239,68,68,0.1)',  border: 'rgba(239,68,68,0.25)'   },
 ];
+
+// Mapeo stage → status (nuevo esquema)
+function stageToStatus(stage) {
+  if (stage === 'active')         return 'activo';
+  if (stage === 'lead')           return 'pendiente_contacto';
+  if (stage === 'closed_no_deal') return 'cierre_sin_acuerdo';
+  if (stage === 'onboarding')     return 'en_proceso_alta';
+  if (['first_contact', 'proposal', 'negotiation'].includes(stage)) return 'en_desarrollo';
+  return 'pendiente_contacto';
+}
 
 function daysSince(dateStr) {
   if (!dateStr) return null;
@@ -72,14 +84,12 @@ function ChannelCard({ channel, onDragStart, stage, onClick, typeMap, showKam, d
         <div className="text-[10px] text-[#E87A1E] font-medium mb-1">{channel.profiles.full_name}</div>
       )}
 
-      {/* Date info based on filter */}
       <div className="text-[9px] text-[#8b90a0] mb-1">
         {dateType === 'creation'
           ? `Creado: ${formatShortDate(channel.created_at)}`
           : `→ ${formatShortDate(channel.pipeline_stage_changed_at || channel.updated_at)}`}
       </div>
 
-      {/* Volume badge */}
       {channel.volume_amount != null && channel.volume_unit && (
         <div className="mb-1">
           <span className="text-[9px] font-bold px-1.5 py-0.5 rounded"
@@ -89,12 +99,28 @@ function ChannelCard({ channel, onDragStart, stage, onClick, typeMap, showKam, d
         </div>
       )}
 
+      {/* Potencial CAES / Energía si existen */}
+      {(channel.potencial_caes || channel.potencial_energia) && (
+        <div className="flex gap-1 mb-1">
+          {channel.potencial_caes && (
+            <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-brand-500/10 text-brand-400">
+              CAES: {channel.potencial_caes}
+            </span>
+          )}
+          {channel.potencial_energia && (
+            <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400">
+              E: {channel.potencial_energia}
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           {daysInStage !== null && (
             <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${
               daysInStage > 14 ? 'bg-red-500/20 text-red-400' :
-              daysInStage > 7 ? 'bg-amber-500/20 text-amber-400' :
+              daysInStage > 7  ? 'bg-amber-500/20 text-amber-400' :
               'bg-[#dde1e8] text-[#5a6078]'
             }`}>{daysInStage}d en fase</span>
           )}
@@ -113,7 +139,6 @@ function ChannelCard({ channel, onDragStart, stage, onClick, typeMap, showKam, d
 function PipelineColumn({ stage, channels, onDrop, onDragStart, dragOver, setDragOver, onChannelClick, typeMap, showKam, dateType }) {
   const isOver = dragOver === stage.key;
 
-  // Calculate volume totals for this stage
   const volTotals = {};
   channels.forEach(ch => {
     if (ch.volume_amount != null && ch.volume_unit) {
@@ -230,7 +255,7 @@ function PipelineMobile({ channelsByStage, onMove, loading, onChannelClick, type
   );
 }
 
-// ============ KAM SELECTOR (Managers/Directors) ============
+// ============ KAM SELECTOR ============
 function KamSelector({ kams, selected, onChange }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -311,10 +336,9 @@ export default function PipelinePage() {
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
 
-  // Team data (for managers)
   const [teamKams, setTeamKams] = useState([]);
-
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640);
+
   useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth < 640);
     window.addEventListener('resize', handler);
@@ -344,10 +368,7 @@ export default function PipelinePage() {
         .select(`*, visits(checkin_at), profiles!channels_assigned_to_fkey(full_name, zone)`)
         .order('updated_at', { ascending: false });
 
-      // If KAM (not manager), only own channels
-      if (!isManager) {
-        query = query.eq('assigned_to', user.id);
-      }
+      if (!isManager) query = query.eq('assigned_to', user.id);
 
       const { data, error } = await query;
       if (error) throw error;
@@ -377,15 +398,13 @@ export default function PipelinePage() {
     const oldStage = STAGES.find(s => s.key === oldStageKey);
     const newStageObj = STAGES.find(s => s.key === newStage);
     const now = new Date().toISOString();
+    const newStatus = stageToStatus(newStage);
 
     setChannels(prev => prev.map(c =>
-      c.id === channelId ? { ...c, pipeline_stage: newStage, pipeline_stage_changed_at: now, updated_at: now } : c
+      c.id === channelId
+        ? { ...c, pipeline_stage: newStage, status: newStatus, pipeline_stage_changed_at: now, updated_at: now }
+        : c
     ));
-
-    let newStatus = channel.status;
-    if (newStage === 'active') newStatus = 'active';
-    else if (newStage === 'lead') newStatus = 'prospect';
-    else if (['first_contact', 'proposal', 'negotiation', 'onboarding'].includes(newStage)) newStatus = 'developing';
 
     try {
       const { error } = await supabase.from('channels')
@@ -393,7 +412,6 @@ export default function PipelinePage() {
         .eq('id', channelId);
       if (error) throw error;
 
-      // Record history
       await supabase.from('channel_pipeline_history').insert({
         channel_id: channelId, from_stage: oldStageKey, to_stage: newStage, changed_by: user.id,
       });
@@ -410,10 +428,7 @@ export default function PipelinePage() {
 
   // ---- FILTERING ----
   const filteredChannels = channels.filter(ch => {
-    // KAM filter (managers)
     if (selectedKam !== 'all' && ch.assigned_to !== selectedKam) return false;
-
-    // Date filter
     if (period === 'all') return true;
 
     let range;
@@ -434,32 +449,33 @@ export default function PipelinePage() {
   const channelsByStage = {};
   STAGES.forEach(s => { channelsByStage[s.key] = []; });
   filteredChannels.forEach(ch => {
-    if (channelsByStage[ch.pipeline_stage]) channelsByStage[ch.pipeline_stage].push(ch);
+    const key = ch.pipeline_stage;
+    if (channelsByStage[key]) channelsByStage[key].push(ch);
   });
 
-  const totalInPipeline = filteredChannels.filter(c => !['lead', 'active'].includes(c.pipeline_stage)).length;
-
-  // KPIs
-  const newLeads = filteredChannels.filter(c => c.pipeline_stage === 'lead').length;
-  const advanced = filteredChannels.filter(c => ['first_contact', 'proposal', 'negotiation', 'onboarding'].includes(c.pipeline_stage)).length;
-  const closed = filteredChannels.filter(c => c.pipeline_stage === 'active').length;
+  // KPIs — excluir lead y los estadosterminal
+  const inProcess = ['first_contact', 'proposal', 'negotiation', 'onboarding'];
+  const totalInPipeline = filteredChannels.filter(c => inProcess.includes(c.pipeline_stage)).length;
+  const newLeads     = filteredChannels.filter(c => c.pipeline_stage === 'lead').length;
+  const advanced     = filteredChannels.filter(c => inProcess.includes(c.pipeline_stage)).length;
+  const closed       = filteredChannels.filter(c => c.pipeline_stage === 'active').length;
+  const closedNoDeal = filteredChannels.filter(c => c.pipeline_stage === 'closed_no_deal').length;
   const avgDays = (() => {
     const withDays = filteredChannels
-      .filter(c => c.pipeline_stage !== 'active' && c.pipeline_stage_changed_at)
+      .filter(c => !['active', 'closed_no_deal'].includes(c.pipeline_stage) && c.pipeline_stage_changed_at)
       .map(c => daysSince(c.pipeline_stage_changed_at))
       .filter(d => d !== null);
     return withDays.length > 0 ? Math.round(withDays.reduce((a, b) => a + b, 0) / withDays.length) : 0;
   })();
 
-  // Team breakdown
   const teamBreakdown = isManager && selectedKam === 'all' ? teamKams.map(kam => {
     const kamChannels = filteredChannels.filter(c => c.assigned_to === kam.id);
     return {
       ...kam,
-      leads: kamChannels.filter(c => c.pipeline_stage === 'lead').length,
-      pipeline: kamChannels.filter(c => !['lead', 'active'].includes(c.pipeline_stage)).length,
-      closed: kamChannels.filter(c => c.pipeline_stage === 'active').length,
-      total: kamChannels.length,
+      leads:    kamChannels.filter(c => c.pipeline_stage === 'lead').length,
+      pipeline: kamChannels.filter(c => inProcess.includes(c.pipeline_stage)).length,
+      closed:   kamChannels.filter(c => c.pipeline_stage === 'active').length,
+      total:    kamChannels.length,
     };
   }).filter(k => k.total > 0) : [];
 
@@ -490,7 +506,7 @@ export default function PipelinePage() {
         )}
       </div>
 
-      {/* KAM Selector (managers only) */}
+      {/* KAM Selector */}
       {isManager && teamKams.length > 0 && (
         <KamSelector kams={teamKams} selected={selectedKam} onChange={setSelectedKam} />
       )}
@@ -514,7 +530,7 @@ export default function PipelinePage() {
         ))}
       </div>
 
-      {/* Date range + type (visible when not "all") */}
+      {/* Date range + type */}
       {period !== 'all' && (
         <div className="bg-[#f7f8fa] border border-[#dde1e8] rounded-xl p-2.5 mb-3">
           <div className="flex items-center gap-2">
@@ -554,10 +570,10 @@ export default function PipelinePage() {
       {period !== 'all' && (
         <div className="flex gap-2 mb-3">
           {[
-            { val: newLeads, label: 'Nuevos leads', color: '#E87A1E' },
-            { val: advanced, label: 'En proceso', color: '#3b82f6' },
-            { val: closed, label: 'Cerrados', color: '#16a34a' },
-            { val: `${avgDays}d`, label: 'Media en fase', color: '#8b5cf6' },
+            { val: newLeads,     label: 'Nuevos leads',  color: '#E87A1E' },
+            { val: advanced,     label: 'En proceso',    color: '#3b82f6' },
+            { val: closed,       label: 'Activos',       color: '#16a34a' },
+            { val: closedNoDeal, label: 'Sin acuerdo',   color: '#ef4444' },
           ].map((k, i) => (
             <div key={i} className="flex-1 bg-white border border-[#dde1e8] rounded-xl p-2.5 text-center">
               <div className="text-lg font-extrabold" style={{ color: k.color }}>{k.val}</div>
@@ -567,7 +583,7 @@ export default function PipelinePage() {
         </div>
       )}
 
-      {/* Team breakdown (managers, "all" selected, with date filter) */}
+      {/* Team breakdown */}
       {isManager && selectedKam === 'all' && period !== 'all' && teamBreakdown.length > 0 && (
         <div className="bg-[#f7f8fa] border border-[#dde1e8] rounded-xl p-2.5 mb-3">
           <div className="text-[9px] font-bold text-[#8b90a0] uppercase tracking-wider mb-2">Desglose por KAM</div>
@@ -585,7 +601,7 @@ export default function PipelinePage() {
                 <div className="flex gap-3 text-center">
                   <div><div className="text-[11px] font-bold text-[#E87A1E]">{kam.leads}</div><div className="text-[7px] text-[#8b90a0]">Leads</div></div>
                   <div><div className="text-[11px] font-bold text-[#3b82f6]">{kam.pipeline}</div><div className="text-[7px] text-[#8b90a0]">Pipeline</div></div>
-                  <div><div className="text-[11px] font-bold text-[#16a34a]">{kam.closed}</div><div className="text-[7px] text-[#8b90a0]">Cerrados</div></div>
+                  <div><div className="text-[11px] font-bold text-[#16a34a]">{kam.closed}</div><div className="text-[7px] text-[#8b90a0]">Activos</div></div>
                 </div>
               </button>
             ))}
@@ -611,9 +627,7 @@ export default function PipelinePage() {
                 if (total === 0) return null;
                 return (
                   <div key={u.key} className="flex-1 rounded-lg p-2 text-center" style={{ background: u.bg }}>
-                    <div className="text-lg font-extrabold" style={{ color: u.color }}>
-                      {formatVolume(total, u.key)}
-                    </div>
+                    <div className="text-lg font-extrabold" style={{ color: u.color }}>{formatVolume(total, u.key)}</div>
                     <div className="text-[9px] font-semibold" style={{ color: u.color }}>{u.label}</div>
                     <div className="text-[7px] text-[#8b90a0]">{u.unit}</div>
                   </div>
