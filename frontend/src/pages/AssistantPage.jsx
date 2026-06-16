@@ -15,16 +15,20 @@ Tu trabajo es interpretar lo que el usuario te pide y responder con un JSON que 
 ACCIONES DISPONIBLES:
 
 1. "create_channel" - Crear un nuevo canal.
-   Campos: name (obligatorio), contact_name, phone, email, cif, website, lead_source (inbound_web|outbound_navigator|outbound_referidos|outbound_otros), address, city, province, notes
+   Campos: name (obligatorio), contact_name, phone, email, cif, website,
+   lead_source (evento|congreso|webinar|linkedin_sales_navigator|recomendacion_partner|industrial|generacion_distribuida|canal_naturgy|kam|asociacion_sectorial|fabricante|solicitud_directa|otros),
+   tipo_canal_caes (Instalador|Fabricante|Distribuidor|Asociación|Ingeniería|ESE|Administrador de fincas|Consultoría energética|Plataforma tecnológica|Concesionario VE|Organización de consumidores|Entidad financiera|Rehabilitador|Otros),
+   comunidad_autonoma, potencial_caes (Bajo|Medio|Alto|Muy Alto), potencial_energia (Bajo|Medio|Alto|Muy Alto),
+   address, city, province, notes
 
 2. "query_channels" - Consultar canales.
-   Filtros: status (prospect|developing|active|inactive), sin_visita_dias (canales sin visitar en X días), city, search (búsqueda por nombre)
+   Filtros: status (pendiente_contacto|en_desarrollo|en_evaluacion|en_proceso_alta|activo|rechazado|cierre_sin_acuerdo), sin_visita_dias (canales sin visitar en X días), city, search (búsqueda por nombre)
 
 3. "query_visits" - Consultar visitas realizadas.
    Filtros: periodo (hoy|semana|mes), resultado (positive|neutral|negative)
 
 4. "move_pipeline" - Mover canal de fase en el pipeline.
-   Campos: channel_name, new_stage (lead|first_contact|proposal|negotiation|onboarding|active)
+   Campos: channel_name, new_stage (lead|first_contact|proposal|negotiation|onboarding|active|closed_no_deal)
 
 5. "plan_action" - Planificar cualquier acción futura (visita, llamada, email, reunión, WhatsApp, LinkedIn).
    Campos: channel_name, action_type (visit|call|email|whatsapp|meeting|linkedin), date (YYYY-MM-DD), time (HH:MM), notes
@@ -44,14 +48,17 @@ RESPONDE SIEMPRE con este JSON exacto (sin markdown, sin backticks):
 {"action": "nombre_accion", "params": {...}, "message": "Mensaje para el usuario"}
 
 EJEMPLOS:
-- "Crea un canal Solar Madrid, contacto Pedro, origen Sales Navigator"
-  → {"action": "create_channel", "params": {"name": "Solar Madrid", "contact_name": "Pedro", "lead_source": "outbound_navigator"}, "message": "Voy a crear el canal Solar Madrid."}
+- "Crea un canal Solar Madrid, contacto Pedro, origen LinkedIn"
+  → {"action": "create_channel", "params": {"name": "Solar Madrid", "contact_name": "Pedro", "lead_source": "linkedin_sales_navigator"}, "message": "Voy a crear el canal Solar Madrid."}
 
 - "¿Cuántas visitas he hecho esta semana?"
   → {"action": "query_visits", "params": {"periodo": "semana"}, "message": "Déjame consultar tus visitas de esta semana."}
 
 - "Mueve Pepito a negociación"
   → {"action": "move_pipeline", "params": {"channel_name": "Pepito", "new_stage": "negotiation"}, "message": "Voy a mover Pepito a Negociación."}
+
+- "Marca García como sin acuerdo"
+  → {"action": "move_pipeline", "params": {"channel_name": "García", "new_stage": "closed_no_deal"}, "message": "Voy a marcar García como cierre sin acuerdo."}
 
 - "Planifica una llamada a García para el jueves a las 11"
   → {"action": "plan_action", "params": {"channel_name": "García", "action_type": "call", "date": "NEXT_THURSDAY", "time": "11:00", "notes": ""}, "message": "Voy a planificar una llamada a García para el jueves a las 11:00."}
@@ -75,15 +82,39 @@ Hoy es ${new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric
 Si el usuario dice "jueves", "mañana", etc., calcula la fecha correcta.
 Si dice "planifica una llamada" o "tengo que llamar a X el martes", usa action_type "call".
 Si dice "agenda" o "qué tengo planificado", incluye TODAS las acciones (no solo visitas).
+Si dice "sin acuerdo" o "no ha salido", usa new_stage "closed_no_deal".
 Responde siempre en español.`;
 
 const STAGE_LABELS = {
-  lead: 'Lead', first_contact: 'Primer contacto', proposal: 'Propuesta',
-  negotiation: 'Negociación', onboarding: 'Alta', active: 'Activo',
+  lead: 'Lead',
+  first_contact: 'Primer contacto',
+  proposal: 'Propuesta',
+  negotiation: 'Negociación',
+  onboarding: 'En proceso alta',
+  active: 'Activo',
+  closed_no_deal: 'Sin acuerdo',
 };
+
 const STATUS_LABELS = {
-  prospect: 'Prospecto', developing: 'En desarrollo', active: 'Activo', inactive: 'Inactivo',
+  pendiente_contacto: 'Pendiente contacto',
+  en_desarrollo:      'En desarrollo',
+  en_evaluacion:      'En evaluación',
+  en_proceso_alta:    'En proceso de alta',
+  activo:             'Activo',
+  rechazado:          'Rechazado',
+  cierre_sin_acuerdo: 'Cierre sin acuerdo',
 };
+
+// Mapeo stage → status (igual que PipelinePage)
+function stageToStatus(stage) {
+  if (stage === 'active')         return 'activo';
+  if (stage === 'lead')           return 'pendiente_contacto';
+  if (stage === 'closed_no_deal') return 'cierre_sin_acuerdo';
+  if (stage === 'onboarding')     return 'en_proceso_alta';
+  if (['first_contact', 'proposal', 'negotiation'].includes(stage)) return 'en_desarrollo';
+  return 'pendiente_contacto';
+}
+
 const ACTION_TYPE_LABELS = {
   visit: '📍 Visita', call: '📞 Llamada', email: '📧 Email',
   whatsapp: '💬 WhatsApp', meeting: '👥 Reunión', linkedin: '💼 LinkedIn', other: '📋 Otro',
@@ -228,8 +259,12 @@ export default function AssistantPage() {
             phone: params.phone || null, email: params.email || null,
             cif: params.cif || null, website: params.website || null,
             lead_source: params.lead_source || null,
+            tipo_canal_caes: params.tipo_canal_caes || null,
+            comunidad_autonoma: params.comunidad_autonoma || null,
+            potencial_caes: params.potencial_caes || null,
+            potencial_energia: params.potencial_energia || null,
             address: params.address || null, city: params.city || null, province: params.province || null,
-            status: 'prospect', pipeline_stage: 'lead',
+            status: 'pendiente_contacto', pipeline_stage: 'lead',
             notes: params.notes || null, assigned_to: user.id,
           }).select().single();
           if (error) throw error;
@@ -257,7 +292,10 @@ export default function AssistantPage() {
             }
             return { data: results, actionResult: `${results.length} canales sin visita en ${params.sin_visita_dias}+ días`, actionSuccess: true };
           }
-          return { data: (data || []).map(c => ({ name: c.name, value: c.city || '', badge: STATUS_LABELS[c.status] || c.status })), actionResult: `${data?.length || 0} canales encontrados`, actionSuccess: true };
+          return {
+            data: (data || []).map(c => ({ name: c.name, value: c.city || '', badge: STATUS_LABELS[c.status] || c.status })),
+            actionResult: `${data?.length || 0} canales encontrados`, actionSuccess: true,
+          };
         }
 
         case 'query_visits': {
@@ -287,16 +325,21 @@ export default function AssistantPage() {
           if (!params.channel_name || !params.new_stage) return { actionResult: 'Necesito el nombre del canal y la fase destino', actionSuccess: false };
           const { data: chs } = await supabase.from('channels').select('id, name, pipeline_stage').eq('assigned_to', user.id).ilike('name', `%${params.channel_name}%`).limit(1);
           if (!chs?.length) return { actionResult: `No encontré "${params.channel_name}"`, actionSuccess: false };
-          const ch = chs[0]; const oldStage = STAGE_LABELS[ch.pipeline_stage]; const newStage = STAGE_LABELS[params.new_stage];
+          const ch = chs[0];
+          const oldStageLabel = STAGE_LABELS[ch.pipeline_stage] || ch.pipeline_stage;
+          const newStageLabel = STAGE_LABELS[params.new_stage] || params.new_stage;
           const now = new Date().toISOString();
+          const newStatus = stageToStatus(params.new_stage);
           const { error } = await supabase.from('channels').update({
-            pipeline_stage: params.new_stage, pipeline_stage_changed_at: now,
-            status: params.new_stage === 'active' ? 'active' : ['first_contact','proposal','negotiation','onboarding'].includes(params.new_stage) ? 'developing' : 'prospect',
+            pipeline_stage: params.new_stage,
+            status: newStatus,
+            pipeline_stage_changed_at: now,
           }).eq('id', ch.id);
           if (error) throw error;
-          // Record history
-          await supabase.from('channel_pipeline_history').insert({ channel_id: ch.id, from_stage: ch.pipeline_stage, to_stage: params.new_stage, changed_by: user.id }).catch(() => {});
-          return { actionResult: `${ch.name}: ${oldStage} → ${newStage}`, actionSuccess: true };
+          await supabase.from('channel_pipeline_history').insert({
+            channel_id: ch.id, from_stage: ch.pipeline_stage, to_stage: params.new_stage, changed_by: user.id,
+          }).catch(() => {});
+          return { actionResult: `${ch.name}: ${oldStageLabel} → ${newStageLabel}`, actionSuccess: true };
         }
 
         case 'plan_action': {
@@ -328,8 +371,7 @@ export default function AssistantPage() {
           const now = new Date();
           let startDate, endDate;
           if (params.date === 'hoy' || !params.date) {
-            startDate = localDateKey(now);
-            endDate = startDate;
+            startDate = localDateKey(now); endDate = startDate;
           } else if (params.date === 'mañana' || params.date === 'TOMORROW') {
             const d = new Date(now); d.setDate(d.getDate() + 1);
             startDate = localDateKey(d); endDate = startDate;
@@ -350,7 +392,7 @@ export default function AssistantPage() {
               .gte('planned_date', startDate).lte('planned_date', endDate).order('planned_date').order('planned_time'),
           ]);
 
-          const visits = (pvRes.status === 'fulfilled' ? pvRes.value.data : []) || [];
+          const visits  = (pvRes.status === 'fulfilled' ? pvRes.value.data : []) || [];
           const actions = (paRes.status === 'fulfilled' ? paRes.value.data : []) || [];
 
           const allEvents = [
@@ -361,7 +403,6 @@ export default function AssistantPage() {
             }),
           ].sort((a, b) => `${a.value} ${a.time}`.localeCompare(`${b.value} ${b.time}`));
 
-          // Format with time
           const formatted = allEvents.map(e => ({
             ...e,
             value: `${e.time || '--:--'} · ${new Date(e.value + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' })}`,
@@ -426,11 +467,11 @@ export default function AssistantPage() {
           const gc = (r) => r.status === 'fulfilled' ? (r.value.count || 0) : 0;
           return {
             data: [
-              { name: 'Visitas hoy', value: gc(today) },
-              { name: 'Visitas esta semana', value: gc(week) },
-              { name: 'Total canales', value: gc(channels) },
-              { name: 'Pipeline activo', value: gc(pipeline) },
-              { name: 'Acciones pendientes hoy', value: gc(plannedToday) },
+              { name: 'Visitas hoy',             value: gc(today) },
+              { name: 'Visitas esta semana',      value: gc(week) },
+              { name: 'Total canales',            value: gc(channels) },
+              { name: 'Pipeline activo',          value: gc(pipeline) },
+              { name: 'Acciones pendientes hoy',  value: gc(plannedToday) },
             ],
             actionResult: 'Tus estadísticas actualizadas', actionSuccess: true,
           };
