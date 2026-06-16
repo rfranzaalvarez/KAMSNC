@@ -2,24 +2,29 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../components/AuthProvider';
 import { formatVolume, getVolumeConfig, VOLUME_UNITS } from '../components/VolumeEditor';
+import { PIPELINE_CONFIG } from '../lib/crmConstants';
 import { Loader2, Users, Eye, ChevronRight, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
 
 const PIPELINE_STAGES = [
-  { key: 'lead', label: 'Lead', color: '#94a3b8' },
-  { key: 'first_contact', label: 'Contacto', color: '#60a5fa' },
-  { key: 'proposal', label: 'Propuesta', color: '#a78bfa' },
-  { key: 'negotiation', label: 'Negociación', color: '#f59e0b' },
-  { key: 'onboarding', label: 'Alta', color: '#22c55e' },
-  { key: 'active', label: 'Activo', color: '#10b981' },
+  { key: 'lead',           label: 'Lead',             color: '#94a3b8' },
+  { key: 'first_contact',  label: 'Contacto',         color: '#60a5fa' },
+  { key: 'proposal',       label: 'Propuesta',        color: '#a78bfa' },
+  { key: 'negotiation',    label: 'Negociación',      color: '#f59e0b' },
+  { key: 'onboarding',     label: 'En proceso alta',  color: '#f97316' },
+  { key: 'active',         label: 'Activo',           color: '#22c55e' },
+  { key: 'closed_no_deal', label: 'Sin acuerdo',      color: '#ef4444' },
 ];
+
+// Stages que cuentan como "en proceso" (ni lead ni terminales)
+const IN_PROCESS_STAGES = ['first_contact', 'proposal', 'negotiation', 'onboarding'];
 
 const RESULT_COLORS = {
   positive: { label: 'Positiva', bg: 'bg-green-50', text: 'text-green-600' },
-  neutral: { label: 'Neutral', bg: 'bg-amber-50', text: 'text-amber-600' },
-  negative: { label: 'Negativa', bg: 'bg-red-50', text: 'text-red-600' },
+  neutral:  { label: 'Neutral',  bg: 'bg-amber-50', text: 'text-amber-600' },
+  negative: { label: 'Negativa', bg: 'bg-red-50',   text: 'text-red-600'   },
 };
 
-const ACTION_ICONS = { visit: '📍', call: '📞', email: '📧', whatsapp: '💬', meeting: '👥', linkedin: '💼', note: '📝' };
+const ACTION_ICONS  = { visit: '📍', call: '📞', email: '📧', whatsapp: '💬', meeting: '👥', linkedin: '💼', note: '📝' };
 const ACTION_LABELS = { visit: 'Visita', call: 'Llamada', email: 'Email', whatsapp: 'WhatsApp', meeting: 'Reunión', linkedin: 'LinkedIn' };
 
 function MiniBar({ value, max, color }) {
@@ -79,6 +84,7 @@ function KamDetail({ kam, onBack }) {
       </div>
 
       <div className="grid sm:grid-cols-2 gap-4 mb-4">
+        {/* Pipeline */}
         <div className="bg-surface-1 border border-surface-3 rounded-xl p-4">
           <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3">Pipeline</h3>
           <div className="space-y-2">
@@ -86,9 +92,14 @@ function KamDetail({ kam, onBack }) {
               const count = pipeCounts[stage.key] || 0;
               return (
                 <div key={stage.key} className="flex items-center gap-2.5">
-                  <span className="text-[10px] font-semibold w-16 text-right text-text-muted">{stage.label}</span>
+                  <span className="text-[10px] font-semibold w-20 text-right text-text-muted">{stage.label}</span>
                   <div className="flex-1 h-5 bg-surface-0 rounded overflow-hidden">
-                    {count > 0 && <div className="h-full rounded flex items-center justify-end pr-1.5 text-[9px] font-bold text-white" style={{ width: `${(count / maxPipe) * 100}%`, backgroundColor: stage.color, minWidth: 22 }}>{count}</div>}
+                    {count > 0 && (
+                      <div className="h-full rounded flex items-center justify-end pr-1.5 text-[9px] font-bold text-white"
+                        style={{ width: `${(count / maxPipe) * 100}%`, backgroundColor: stage.color, minWidth: 22 }}>
+                        {count}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -96,6 +107,7 @@ function KamDetail({ kam, onBack }) {
           </div>
         </div>
 
+        {/* Volumen */}
         <div className="bg-surface-1 border border-surface-3 rounded-xl p-4">
           <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3">Volumen</h3>
           {Object.keys(volTotals).length === 0 ? (
@@ -119,6 +131,7 @@ function KamDetail({ kam, onBack }) {
         </div>
       </div>
 
+      {/* Últimas visitas */}
       <div className="bg-surface-1 border border-surface-3 rounded-xl p-4">
         <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3">Últimas visitas</h3>
         {visits.length === 0 ? <p className="text-sm text-text-muted text-center py-4">Sin visitas</p> : (
@@ -131,7 +144,10 @@ function KamDetail({ kam, onBack }) {
                   <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${v.result === 'positive' ? 'bg-green-500' : v.result === 'negative' ? 'bg-red-500' : 'bg-amber-500'}`} />
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-semibold truncate">{v.channels?.name || 'Canal'}</div>
-                    <div className="text-[10px] text-text-muted">{d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} · {d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}{v.duration_minutes ? ` · ${v.duration_minutes}min` : ''}</div>
+                    <div className="text-[10px] text-text-muted">
+                      {d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} · {d.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}
+                      {v.duration_minutes ? ` · ${v.duration_minutes}min` : ''}
+                    </div>
                   </div>
                   {rc && <span className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${rc.bg} ${rc.text}`}>{rc.label}</span>}
                 </div>
@@ -160,14 +176,13 @@ export default function DashboardPage() {
   async function loadDashboard() {
     setLoading(true);
     try {
-      // 1. Get KAMs - try reports_to first, fallback to all active KAMs
+      // 1. KAMs
       let { data: directReports } = await supabase
         .from('profiles').select('*')
         .eq('reports_to', user.id).eq('is_active', true);
 
       let kamProfiles = (directReports || []).filter(k => k.role === 'kam');
 
-      // If director, also get KAMs under managers
       if (profile?.role === 'director' && directReports?.length) {
         const mgrIds = directReports.filter(k => k.role !== 'kam').map(k => k.id);
         if (mgrIds.length) {
@@ -176,7 +191,6 @@ export default function DashboardPage() {
         }
       }
 
-      // Fallback: if no reports_to results, get ALL active KAMs
       if (kamProfiles.length === 0) {
         const { data: allKams } = await supabase.from('profiles').select('*').eq('role', 'kam').eq('is_active', true);
         kamProfiles = allKams || [];
@@ -186,11 +200,12 @@ export default function DashboardPage() {
       if (!kamIds.length) { setTeamKams([]); setLoading(false); return; }
 
       // 2. Dates
-      const now = new Date();
-      const pad = (n) => String(n).padStart(2, '0');
-      const mondayStart = (() => { const d = new Date(now); const day = d.getDay() || 7; d.setDate(d.getDate() - day + 1); d.setHours(0,0,0,0); return d.toISOString(); })();
+      const mondayStart = (() => {
+        const d = new Date(); const day = d.getDay() || 7;
+        d.setDate(d.getDate() - day + 1); d.setHours(0, 0, 0, 0); return d.toISOString();
+      })();
 
-      // 3. Parallel queries
+      // 3. Queries
       const [visitsRes, interRes, channelsRes, alertsRes] = await Promise.allSettled([
         supabase.from('visits').select('kam_id, checkin_at, result, channels(name)').in('kam_id', kamIds).gte('checkin_at', mondayStart).order('checkin_at', { ascending: false }),
         supabase.from('channel_interactions').select('user_id, interaction_type, created_at, is_completed, channels(name), profiles(full_name)').in('user_id', kamIds).gte('created_at', mondayStart).eq('is_completed', true).order('created_at', { ascending: false }).limit(50),
@@ -199,28 +214,28 @@ export default function DashboardPage() {
       ]);
 
       const gd = (r) => r.status === 'fulfilled' ? (r.value.data || []) : [];
-      const weekVisits = gd(visitsRes);
+      const weekVisits       = gd(visitsRes);
       const weekInteractions = gd(interRes);
-      const allChannels = gd(channelsRes);
-      const alerts = gd(alertsRes);
+      const allChannels      = gd(channelsRes);
+      const alerts           = gd(alertsRes);
 
       // 4. Per-KAM stats
       const visitsByKam = {};
-      const interByKam = {};
+      const interByKam  = {};
       weekVisits.forEach(v => { visitsByKam[v.kam_id] = (visitsByKam[v.kam_id] || 0) + 1; });
-      weekInteractions.forEach(i => { interByKam[i.user_id] = (interByKam[i.user_id] || []);  interByKam[i.user_id].push(i); });
+      weekInteractions.forEach(i => { interByKam[i.user_id] = (interByKam[i.user_id] || []); interByKam[i.user_id].push(i); });
 
       const enrichedKams = kamProfiles.map(k => {
-        const visits = visitsByKam[k.id] || 0;
-        const inters = interByKam[k.id] || [];
-        const calls = inters.filter(i => i.interaction_type === 'call').length;
-        const emails = inters.filter(i => i.interaction_type === 'email').length;
+        const visits   = visitsByKam[k.id] || 0;
+        const inters   = interByKam[k.id] || [];
+        const calls    = inters.filter(i => i.interaction_type === 'call').length;
+        const emails   = inters.filter(i => i.interaction_type === 'email').length;
         const meetings = inters.filter(i => ['meeting', 'whatsapp', 'linkedin'].includes(i.interaction_type)).length;
         const totalActions = visits + inters.length;
-        const kamChannels = allChannels.filter(c => c.assigned_to === k.id);
-        const pipeline = kamChannels.filter(c => ['first_contact', 'proposal', 'negotiation', 'onboarding'].includes(c.pipeline_stage)).length;
-        const closed = kamChannels.filter(c => c.pipeline_stage === 'active').length;
-        const score = visits * 10 + calls * 3 + emails * 2 + meetings * 5 + closed * 20;
+        const kamChannels  = allChannels.filter(c => c.assigned_to === k.id);
+        const pipeline = kamChannels.filter(c => IN_PROCESS_STAGES.includes(c.pipeline_stage)).length;
+        const closed   = kamChannels.filter(c => c.pipeline_stage === 'active').length;
+        const score    = visits * 10 + calls * 3 + emails * 2 + meetings * 5 + closed * 20;
 
         const lastVisit = weekVisits.filter(v => v.kam_id === k.id).sort((a, b) => new Date(b.checkin_at) - new Date(a.checkin_at))[0];
         let lastActive = null;
@@ -234,7 +249,7 @@ export default function DashboardPage() {
         return { ...k, name: k.full_name, visits, calls, emails, meetings, totalActions, channels: kamChannels.length, pipeline, closed, score, lastActive };
       }).sort((a, b) => b.score - a.score);
 
-      // 5. Pipeline summary
+      // 5. Pipeline summary (todos los stages)
       const pipeSummary = {};
       PIPELINE_STAGES.forEach(s => { pipeSummary[s.key] = 0; });
       allChannels.forEach(ch => { if (pipeSummary[ch.pipeline_stage] !== undefined) pipeSummary[ch.pipeline_stage]++; });
@@ -248,7 +263,7 @@ export default function DashboardPage() {
         }
       });
 
-      // 7. Recent activity feed
+      // 7. Activity feed
       const feed = [
         ...weekVisits.slice(0, 10).map(v => ({
           type: 'visit', kam: kamProfiles.find(k => k.id === v.kam_id)?.full_name || 'KAM',
@@ -286,16 +301,17 @@ export default function DashboardPage() {
   if (loading) return <div className="flex items-center justify-center py-16"><Loader2 size={24} className="animate-spin text-brand-400" /></div>;
   if (selectedKam) return <KamDetail kam={selectedKam} onBack={() => setSelectedKam(null)} />;
 
-  const totalVisits = teamKams.reduce((s, k) => s + k.visits, 0);
-  const totalActions = teamKams.reduce((s, k) => s + k.totalActions, 0);
+  const totalVisits   = teamKams.reduce((s, k) => s + k.visits, 0);
+  const totalActions  = teamKams.reduce((s, k) => s + k.totalActions, 0);
   const totalPipeline = teamKams.reduce((s, k) => s + k.pipeline, 0);
-  const totalClosed = teamKams.reduce((s, k) => s + k.closed, 0);
+  const totalClosed   = teamKams.reduce((s, k) => s + k.closed, 0);
   const maxScore = teamKams[0]?.score || 1;
-  const maxPipe = Math.max(...Object.values(pipelineSummary), 1);
-  const leadsCount = pipelineSummary['lead'] || 0;
-  const activeCount = pipelineSummary['active'] || 0;
-  const totalChannels = Object.values(pipelineSummary).reduce((a, b) => a + b, 0);
-  const conversionRate = leadsCount + activeCount > 0 ? Math.round((activeCount / totalChannels) * 100) : 0;
+  const maxPipe  = Math.max(...Object.values(pipelineSummary), 1);
+
+  const totalChannels    = Object.values(pipelineSummary).reduce((a, b) => a + b, 0);
+  const activeCount      = pipelineSummary['active'] || 0;
+  const closedNoDeal     = pipelineSummary['closed_no_deal'] || 0;
+  const conversionRate   = totalChannels > 0 ? Math.round((activeCount / totalChannels) * 100) : 0;
 
   return (
     <div className="space-y-5">
@@ -315,10 +331,10 @@ export default function DashboardPage() {
       {/* KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {[
-          { val: totalVisits, sub: `/ ${teamKams.length * 12}`, label: 'Visitas semana', color: '#3b82f6', max: teamKams.length * 12 },
-          { val: totalActions, sub: 'total', label: 'Acciones semana', color: '#8b5cf6', max: teamKams.length * 20 },
-          { val: totalPipeline, sub: 'canales', label: 'En pipeline', color: '#E87A1E', max: totalPipeline + 5 },
-          { val: totalClosed, sub: 'canales', label: 'Cerrados', color: '#16a34a', max: Math.max(totalClosed, 5) },
+          { val: totalVisits,   sub: `/ ${teamKams.length * 12}`, label: 'Visitas semana',   color: '#3b82f6', max: teamKams.length * 12 },
+          { val: totalActions,  sub: 'total',                     label: 'Acciones semana',  color: '#8b5cf6', max: teamKams.length * 20 },
+          { val: totalPipeline, sub: 'canales',                   label: 'En pipeline',      color: '#E87A1E', max: totalPipeline + 5 },
+          { val: totalClosed,   sub: 'activos',                   label: 'Canales activos',  color: '#16a34a', max: Math.max(totalClosed, 5) },
         ].map((kpi, i) => (
           <div key={i} className="rounded-xl p-3 text-center" style={{ background: `linear-gradient(135deg, ${kpi.color}12, ${kpi.color}06)` }}>
             <div className="flex items-baseline justify-center gap-1">
@@ -369,10 +385,10 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex items-center gap-3 ml-16">
                     {[
-                      { icon: '📍', val: kam.visits, label: 'vis' },
-                      { icon: '📞', val: kam.calls, label: 'llam' },
-                      { icon: '📧', val: kam.emails, label: 'email' },
-                      { icon: '👥', val: kam.meetings, label: 'reun' },
+                      { icon: '📍', val: kam.visits,   label: 'vis'   },
+                      { icon: '📞', val: kam.calls,    label: 'llam'  },
+                      { icon: '📧', val: kam.emails,   label: 'email' },
+                      { icon: '👥', val: kam.meetings, label: 'reun'  },
                     ].map((m, j) => (
                       <div key={j} className="flex items-center gap-0.5">
                         <span className="text-[9px]">{m.icon}</span>
@@ -407,9 +423,14 @@ export default function DashboardPage() {
                 const count = pipelineSummary[stage.key] || 0;
                 return (
                   <div key={stage.key} className="flex items-center gap-2">
-                    <span className="text-[10px] font-semibold w-16 text-right text-text-muted">{stage.label}</span>
+                    <span className="text-[10px] font-semibold w-20 text-right text-text-muted">{stage.label}</span>
                     <div className="flex-1 h-6 bg-surface-0 rounded overflow-hidden">
-                      {count > 0 && <div className="h-full rounded flex items-center justify-end pr-1.5 text-[9px] font-bold text-white transition-all duration-500" style={{ width: `${(count / maxPipe) * 100}%`, backgroundColor: stage.color, minWidth: 24 }}>{count}</div>}
+                      {count > 0 && (
+                        <div className="h-full rounded flex items-center justify-end pr-1.5 text-[9px] font-bold text-white transition-all duration-500"
+                          style={{ width: `${(count / maxPipe) * 100}%`, backgroundColor: stage.color, minWidth: 24 }}>
+                          {count}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -418,6 +439,9 @@ export default function DashboardPage() {
             <div className="mt-3 pt-3 border-t border-surface-3 flex items-center justify-between">
               <span className="text-[10px] text-text-muted">Conversión Lead→Activo</span>
               <span className="text-sm font-extrabold text-green-600">{conversionRate}%</span>
+              {closedNoDeal > 0 && (
+                <span className="text-[10px] text-red-400 font-semibold">{closedNoDeal} sin acuerdo</span>
+              )}
             </div>
           </div>
 
