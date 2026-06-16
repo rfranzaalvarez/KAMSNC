@@ -5,6 +5,26 @@ import { Sparkles, Loader2, ChevronDown, ChevronUp, RefreshCw } from 'lucide-rea
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || '';
 
+const STATUS_LABELS = {
+  pendiente_contacto: 'Pendiente contacto',
+  en_desarrollo:      'En desarrollo',
+  en_evaluacion:      'En evaluación',
+  en_proceso_alta:    'En proceso de alta',
+  activo:             'Activo',
+  rechazado:          'Rechazado',
+  cierre_sin_acuerdo: 'Cierre sin acuerdo',
+};
+
+const STAGE_LABELS = {
+  lead:           'Lead',
+  first_contact:  'Primer contacto',
+  proposal:       'Propuesta',
+  negotiation:    'Negociación',
+  onboarding:     'En proceso alta',
+  active:         'Activo',
+  closed_no_deal: 'Sin acuerdo',
+};
+
 export default function PreVisitBrief({ channelId, channelName }) {
   const { user } = useAuthContext();
   const [brief, setBrief] = useState(null);
@@ -19,7 +39,6 @@ export default function PreVisitBrief({ channelId, channelName }) {
     setBrief(null);
 
     try {
-      // 1. Gather all channel data
       const [channelRes, visitsRes, planRes, alertsRes, playbookRes] = await Promise.allSettled([
         supabase.from('channels').select('*').eq('id', channelId).single(),
         supabase.from('visits').select('*, channels(name)')
@@ -32,18 +51,17 @@ export default function PreVisitBrief({ channelId, channelName }) {
           .eq('is_active', true).order('sort_order'),
       ]);
 
-      const channel = channelRes.status === 'fulfilled' ? channelRes.value.data : null;
-      const visits = visitsRes.status === 'fulfilled' ? (visitsRes.value.data || []) : [];
-      const plan = planRes.status === 'fulfilled' ? (planRes.value.data?.[0] || null) : null;
-      const alerts = alertsRes.status === 'fulfilled' ? (alertsRes.value.data || []) : [];
+      const channel  = channelRes.status === 'fulfilled' ? channelRes.value.data : null;
+      const visits   = visitsRes.status === 'fulfilled' ? (visitsRes.value.data || []) : [];
+      const plan     = planRes.status === 'fulfilled' ? (planRes.value.data?.[0] || null) : null;
+      const alerts   = alertsRes.status === 'fulfilled' ? (alertsRes.value.data || []) : [];
       const playbook = playbookRes.status === 'fulfilled' ? (playbookRes.value.data || []) : [];
 
       if (!channel) throw new Error('No se pudo cargar el canal');
 
-      // 2. Build context for Claude
-      const lastVisit = visits[0];
-      const positiveCount = visits.filter(v => v.result === 'positive').length;
-      const negativeCount = visits.filter(v => v.result === 'negative').length;
+      const lastVisit      = visits[0];
+      const positiveCount  = visits.filter(v => v.result === 'positive').length;
+      const negativeCount  = visits.filter(v => v.result === 'negative').length;
       const daysSinceVisit = lastVisit
         ? Math.floor((Date.now() - new Date(lastVisit.checkin_at).getTime()) / 86400000)
         : null;
@@ -53,16 +71,22 @@ export default function PreVisitBrief({ channelId, channelName }) {
       const context = `
 DATOS DEL CANAL:
 - Nombre: ${channel.name}
-- Tipo: ${channel.channel_type || 'No especificado'}
-- Estado: ${channel.status}
-- Fase pipeline: ${channel.pipeline_stage}
+- Estado: ${STATUS_LABELS[channel.status] || channel.status || 'No especificado'}
+- Fase pipeline: ${STAGE_LABELS[channel.pipeline_stage] || channel.pipeline_stage || 'No especificada'}
 - Contacto: ${channel.contact_name || 'No registrado'}
 - Teléfono: ${channel.phone || 'No registrado'}
 - Ciudad: ${channel.city || 'No especificada'}
+- Comunidad Autónoma: ${channel.comunidad_autonoma || 'No especificada'}
 - Notas: ${channel.notes || 'Sin notas'}
 
+DATOS CAES:
+- Tipo de canal CAES: ${channel.tipo_canal_caes || 'No especificado'}
+- Sectores CAE objetivo: ${Array.isArray(channel.sector_cae) && channel.sector_cae.length > 0 ? channel.sector_cae.join(', ') : 'No especificados'}
+- Potencial CAES: ${channel.potencial_caes || 'No evaluado'}
+- Potencial Venta Energía: ${channel.potencial_energia || 'No evaluado'}
+
 HISTORIAL DE VISITAS (últimas ${visits.length}):
-${visits.length === 0 ? '- Sin visitas registradas' : visits.slice(0, 5).map(v => 
+${visits.length === 0 ? '- Sin visitas registradas' : visits.slice(0, 5).map(v =>
   `- ${new Date(v.checkin_at).toLocaleDateString('es-ES')}: ${v.result || 'sin resultado'} | ${v.objective || ''} | Notas: ${v.notes || 'sin notas'} | Próximos pasos: ${v.next_steps || 'no definidos'}`
 ).join('\n')}
 - Total visitas: ${visits.length} | Positivas: ${positiveCount} | Negativas: ${negativeCount}
@@ -77,12 +101,6 @@ ${plan ? `- Objetivo: ${plan.objective || 'No definido'}
 ALERTAS ACTIVAS: ${alerts.length > 0 ? alerts.map(a => a.title).join(', ') : 'Ninguna'}
 `;
 
-      // Build playbook context
-      const playbookContext = playbook.length > 0
-        ? '\n\nPOLÍTICAS DEL PLAYBOOK DE NATURGY:\n' + playbook.map(p => `[${p.section}]: ${p.content}`).join('\n')
-        : '';
-
-      // 3. Call Claude via Railway backend
       const response = await fetch(`${BACKEND_URL}/api/assistant`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -100,6 +118,7 @@ INSTRUCCIONES CLAVE DEL PLAYBOOK:
 - Recordar los 120 minutos de oro diarios para captación.
 - DOs: escucha activa, propuesta de valor clara, involucrar al prospecto.
 - DONTs: no presionar con objetivos de captación, no tecnicismos excesivos.
+- Si hay datos CAES (tipo de canal, sectores CAE objetivo, potencial), úsalos para personalizar el enfoque comercial y los temas a tratar.
 ${playbook.length > 0 ? '\nDETALLE DEL PLAYBOOK:\n' + playbook.map(p => `[${p.section}]: ${p.content}`).join('\n') : ''}
 
 Responde SIEMPRE con este formato exacto (sin markdown, sin backticks, JSON puro):
@@ -133,7 +152,6 @@ Sé directo, práctico y orientado a la acción. Personaliza según los datos re
         const cleaned = rawText.replace(/```json\s*/g, '').replace(/```/g, '').trim();
         parsed = JSON.parse(cleaned);
       } catch {
-        // Si no es JSON válido, crear estructura básica
         parsed = {
           resumen: rawText.slice(0, 200),
           puntos_clave: ['No se pudo generar el brief estructurado'],
@@ -255,7 +273,7 @@ Sé directo, práctico y orientado a la acción. Personaliza según los datos re
               <div className="space-y-1">
                 {brief.preguntas_clave.map((p, i) => (
                   <div key={i} className="flex items-start gap-2 text-xs text-text-secondary">
-                    <span className="text-navy-500 mt-0.5 font-bold">{i+1}.</span>
+                    <span className="text-navy-500 mt-0.5 font-bold">{i + 1}.</span>
                     <span>{p}</span>
                   </div>
                 ))}
