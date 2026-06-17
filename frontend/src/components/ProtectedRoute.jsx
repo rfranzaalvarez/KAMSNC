@@ -8,10 +8,9 @@ import { useEffect, useState } from 'react';
  * - Solo muestra spinner la primera vez que cargas la app
  * - Timeout de seguridad de 3s para nunca quedarse bloqueado
  */
-export function ProtectedRoute({ children, requireManager = false }) {
+export function ProtectedRoute({ children, requireManager = false, requireDirector = false }) {
   const { isAuthenticated, isManager, loading, profile } = useAuthContext();
   const [timedOut, setTimedOut] = useState(false);
-
   // BUGFIX: la key correcta es 'kamapp_profile_cache', no 'kamapp_profile'
   const hasCachedProfile = !!localStorage.getItem('kamapp_profile_cache');
 
@@ -40,6 +39,13 @@ export function ProtectedRoute({ children, requireManager = false }) {
   }
 
   if (requireManager && !isManager) {
+    return <Navigate to="/home" replace />;
+  }
+
+  // requireDirector: no existe un campo isDirector dedicado en useAuth,
+  // así que se comprueba directamente el role del profile (igual de fiable,
+  // ya que profile ya está disponible y cacheado en este punto).
+  if (requireDirector && profile?.role !== 'director') {
     return <Navigate to="/home" replace />;
   }
 
