@@ -959,11 +959,16 @@ export default function ChannelsPage() {
   async function loadChannels() {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('channels')
         .select(`*, visits (checkin_at)`)
-        .eq('assigned_to', user.id)
         .order('updated_at', { ascending: false });
+
+      // Igual que en PipelinePage: si es manager/director, ve todos los canales
+      // del equipo (sin filtrar por assigned_to); si es KAM, solo los suyos.
+      if (!isManager) query = query.eq('assigned_to', user.id);
+
+      const { data, error } = await query;
       if (error) throw error;
       const enriched = (data || []).map(ch => ({
         ...ch,
