@@ -16,7 +16,7 @@ ACCIONES DISPONIBLES:
 
 1. "create_channel" - Crear un nuevo canal.
    Campos: name (obligatorio), contact_name, phone, email, cif, website,
-   lead_source (evento|congreso|webinar|linkedin_sales_navigator|recomendacion_partner|industrial|generacion_distribuida|canal_naturgy|kam|asociacion_sectorial|fabricante|solicitud_directa|otros),
+   lead_source (array, uno o varios de: evento|congreso|webinar|linkedin_sales_navigator|recomendacion_partner|industrial|generacion_distribuida|canal_naturgy|kam|asociacion_sectorial|fabricante|solicitud_directa|otros),
    tipo_canal_caes (Instalador|Fabricante|Distribuidor|Asociación|Ingeniería|ESE|Administrador de fincas|Consultoría energética|Plataforma tecnológica|Concesionario VE|Organización de consumidores|Entidad financiera|Rehabilitador|Otros),
    comunidad_autonoma, potencial_caes (Bajo|Medio|Alto|Muy Alto), potencial_energia (Bajo|Medio|Alto|Muy Alto),
    address, city, province, notes
@@ -49,7 +49,10 @@ RESPONDE SIEMPRE con este JSON exacto (sin markdown, sin backticks):
 
 EJEMPLOS:
 - "Crea un canal Solar Madrid, contacto Pedro, origen LinkedIn"
-  → {"action": "create_channel", "params": {"name": "Solar Madrid", "contact_name": "Pedro", "lead_source": "linkedin_sales_navigator"}, "message": "Voy a crear el canal Solar Madrid."}
+  → {"action": "create_channel", "params": {"name": "Solar Madrid", "contact_name": "Pedro", "lead_source": ["linkedin_sales_navigator"]}, "message": "Voy a crear el canal Solar Madrid."}
+
+- "Crea un canal Aislatec, viene de un congreso y también nos lo recomendó un partner"
+  → {"action": "create_channel", "params": {"name": "Aislatec", "lead_source": ["congreso", "recomendacion_partner"]}, "message": "Voy a crear el canal Aislatec."}
 
 - "¿Cuántas visitas he hecho esta semana?"
   → {"action": "query_visits", "params": {"periodo": "semana"}, "message": "Déjame consultar tus visitas de esta semana."}
@@ -258,7 +261,9 @@ export default function AssistantPage() {
             name: params.name, contact_name: params.contact_name || null,
             phone: params.phone || null, email: params.email || null,
             cif: params.cif || null, website: params.website || null,
-            lead_source: params.lead_source || null,
+            lead_source: params.lead_source
+              ? (Array.isArray(params.lead_source) ? params.lead_source : [params.lead_source])
+              : null,
             tipo_canal_caes: params.tipo_canal_caes || null,
             comunidad_autonoma: params.comunidad_autonoma || null,
             potencial_caes: params.potencial_caes || null,
