@@ -7,7 +7,7 @@ import { Check, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
  * NO guarda en BBDD — devuelve las selecciones via onChange.
  * 
  * Props:
- * - value: array de { classification_id, custom_text? }
+ * - value: array de { classification_id, canal, custom_text? }
  * - onChange: (selections) => void
  * - error: string (mensaje de error de validación)
  */
@@ -60,8 +60,9 @@ export default function ClassificationSelector({ value = [], onChange, error }) 
     if (exists) {
       onChange(value.filter(s => s.classification_id !== classification.id));
     } else {
-      const newItem = { 
+      const newItem = {
         classification_id: classification.id,
+        canal: classification.canal,
         custom_text: classification.canal === 'Otros' && customText ? customText : null,
         _label: formatClassificationLabel(classification),
       };
@@ -108,7 +109,7 @@ export default function ClassificationSelector({ value = [], onChange, error }) 
             return (
               <span key={i} className="inline-flex items-center gap-1 px-2 py-1 bg-brand-500/10 text-brand-600 rounded-lg text-[10px] font-semibold">
                 {label}{s.custom_text ? `: ${s.custom_text}` : ''}
-                <button type="button" onClick={() => toggle(cls || { id: s.classification_id })}
+                <button type="button" onClick={() => toggle(cls || { id: s.classification_id, canal: s.canal })}
                   className="hover:text-red-400 transition-colors ml-0.5">
                   ✕
                 </button>
@@ -178,7 +179,6 @@ export default function ClassificationSelector({ value = [], onChange, error }) 
                   const hasTypes = items.some(it => it.tipo);
 
                   if (!hasTypes) {
-                    // Subcanal sin tipos — checkbox directo al nivel del canal
                     const cls = items[0];
                     const checked = isSelected(cls.id);
                     return (
@@ -196,7 +196,6 @@ export default function ClassificationSelector({ value = [], onChange, error }) 
                     );
                   }
 
-                  // Subcanal CON tipos — mostrar como grupo con borde y padding
                   return (
                     <div key={subcanal} className="ml-1 mb-1 border border-surface-3 rounded-lg overflow-hidden">
                       <div className="text-[9px] font-bold text-text-muted uppercase tracking-wider px-3 py-1.5 bg-surface-1 border-b border-surface-3">
