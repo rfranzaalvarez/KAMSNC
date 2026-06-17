@@ -3,10 +3,15 @@ import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../components/AuthProvider';
 import * as XLSX from 'xlsx';
 import {
+  CREATABLE_PIPELINE_STAGES, POTENCIAL_OPTIONS,
+  COMUNIDADES_AUTONOMAS, LEAD_SOURCE_OPTIONS, stageToStatus,
+} from '../lib/crmConstants';
+import {
   Upload, FileSpreadsheet, Check, X, AlertCircle,
   Loader2, ArrowRight, Download, Eye
 } from 'lucide-react';
 
+// Campos "normales" (1 columna Excel -> 1 campo CRM)
 const CHANNEL_FIELDS = [
   { key: 'name', label: 'Nombre del canal', required: true },
   { key: 'contact_name', label: 'Persona de contacto', required: false },
@@ -15,22 +20,58 @@ const CHANNEL_FIELDS = [
   { key: 'cif', label: 'CIF', required: false },
   { key: 'website', label: 'Página web', required: false },
   { key: 'google_rating', label: 'Valoración Google', required: false },
-  { key: 'lead_source', label: 'Origen del lead', required: false },
+  { key: 'pipeline_stage', label: 'Fase del Pipeline', required: false },
+  { key: 'comunidad_autonoma', label: 'Comunidad Autónoma', required: false },
+  { key: 'potencial_caes', label: 'Potencial CAES', required: false },
+  { key: 'potencial_energia', label: 'Potencial Energía', required: false },
   { key: 'volume_amount', label: 'Volumen anual', required: false },
   { key: 'volume_unit', label: 'Tipo volumen (residencial/pymes/caes)', required: false },
   { key: 'address', label: 'Dirección / Calle', required: false },
   { key: 'city', label: 'Localidad', required: false },
   { key: 'province', label: 'Provincia', required: false },
-  { key: 'status', label: 'Estado', required: false },
   { key: 'notes', label: 'Notas', required: false },
 ];
 
-const STATUS_MAP = {
-  'prospecto': 'prospect', 'prospect': 'prospect',
-  'en desarrollo': 'developing', 'developing': 'developing',
-  'activo': 'active', 'active': 'active',
-  'inactivo': 'inactive', 'inactive': 'inactive',
-};
+// Campos de Origen del lead: una columna Excel por cada origen posible (Sí/No),
+// que se combinan en el array lead_source al importar.
+const LEAD_SOURCE_FIELDS = LEAD_SOURCE_OPTIONS.map(opt => ({
+  key: `lead_source__${opt.value}`,
+  label: `Origen: ${opt.label}`,
+  leadSourceValue: opt.value,
+}));
+
+// Mapa de fase del pipeline en español (Excel) -> key interna
+const STAGE_INPUT_MAP = Object.fromEntries(
+  CREATABLE_PIPELINE_STAGES.map(s => [s.label.toLowerCase(), s.key])
+);
+// También aceptar las keys en inglés tal cual, por si el Excel las trae así
+CREATABLE_PIPELINE_STAGES.forEach(s => { STAGE_INPUT_MAP[s.key] = s.key; });
+
+function parsePipelineStage(value) {
+  if (!value) return 'lead';
+  const v = value.toString().trim().toLowerCase();
+  return STAGE_INPUT_MAP[v] || 'lead';
+}
+
+function parsePotencial(value) {
+  if (!value) return null;
+  const v = value.toString().trim().toLowerCase();
+  const found = POTENCIAL_OPTIONS.find(p => p.toLowerCase() === v);
+  return found || null;
+}
+
+function parseComunidadAutonoma(value) {
+  if (!value) return null;
+  const v = value.toString().trim().toLowerCase();
+  const found = COMUNIDADES_AUTONOMAS.find(ca => ca.toLowerCase() === v);
+  return found || value.toString().trim(); // si no coincide exacto, se guarda igual el texto tal cual
+}
+
+function isAffirmative(value) {
+  if (!value) return false;
+  const v = value.toString().trim().toLowerCase();
+  return ['si', 'sí', 'yes', 'x', 'true', '1'].includes(v);
+}
 
 // ============ EXCEL/CSV PARSER ============
 async function parseFile(file) {
@@ -91,21 +132,58 @@ function FileUploadStep({ onFileParsed }) {
   }
 
   const downloadTemplate = () => {
+    // Cabeceras de origen del lead: una por opción, para marcar con "Sí"
+    const leadSourceHeaders = {};
+    LEAD_SOURCE_OPTIONS.forEach(opt => { leadSourceHeaders[`Origen: ${opt.label}`] = ''; });
+
+    const stageOptionsLabel = CREATABLE_PIPELINE_STAGES.map(s => s.label).join(' / ');
+    const potencialOptionsLabel = POTENCIAL_OPTIONS.join(' / ');
+
     const data = [
-      { Nombre: 'Distribuciones García', Contacto: 'Antonio García', Teléfono: '+34 612 345 678', Email: 'antonio@garcia.es', CIF: 'B12345678', Web: 'www.garcia.es', 'Valoración Google': '4.5', 'Origen del lead': 'Inbound - Web Naturgy', Calle: 'C/ Gran Vía 42', Localidad: 'Madrid', Provincia: 'Madrid', Estado: 'Activo', Notas: 'Cliente desde 2020' },
-      { Nombre: 'Electro Norte S.L.', Contacto: 'Laura Martín', Teléfono: '+34 623 456 789', Email: 'laura@electronorte.com', CIF: 'A87654321', Web: 'www.electronorte.com', 'Valoración Google': '3.8', 'Origen del lead': 'Outbound - Sales Navigator', Calle: 'Av. de América 15', Localidad: 'Madrid', Provincia: 'Madrid', Estado: 'Prospecto', Notas: 'Contactar en junio' },
-      { Nombre: 'Canal Sur Energía', Contacto: 'Pedro López', Teléfono: '+34 634 567 890', Email: 'pedro@canalsur.es', CIF: 'B11223344', Web: '', 'Valoración Google': '', 'Origen del lead': 'Outbound - Referidos otro canal', Calle: 'C/ Alcalá 200', Localidad: 'Sevilla', Provincia: 'Sevilla', Estado: 'En desarrollo', Notas: '' },
+      {
+        Nombre: 'Distribuciones García', Contacto: 'Antonio García', Teléfono: '+34 612 345 678',
+        Email: 'antonio@garcia.es', CIF: 'B12345678', Web: 'www.garcia.es', 'Valoración Google': '4.5',
+        'Fase del Pipeline': 'Lead', 'Comunidad Autónoma': 'Madrid', 'Potencial CAES': 'Alto', 'Potencial Energía': 'Medio',
+        ...leadSourceHeaders, 'Origen: Webinar': 'Sí', 'Origen: Congreso': 'Sí',
+        Calle: 'C/ Gran Vía 42', Localidad: 'Madrid', Provincia: 'Madrid', Notas: 'Cliente desde 2020',
+      },
+      {
+        Nombre: 'Electro Norte S.L.', Contacto: 'Laura Martín', Teléfono: '+34 623 456 789',
+        Email: 'laura@electronorte.com', CIF: 'A87654321', Web: 'www.electronorte.com', 'Valoración Google': '3.8',
+        'Fase del Pipeline': 'Primer contacto', 'Comunidad Autónoma': 'Madrid', 'Potencial CAES': '', 'Potencial Energía': 'Alto',
+        ...leadSourceHeaders, 'Origen: LinkedIn/Sales Navigator': 'Sí',
+        Calle: 'Av. de América 15', Localidad: 'Madrid', Provincia: 'Madrid', Notas: 'Contactar en junio',
+      },
+      {
+        Nombre: 'Canal Sur Energía', Contacto: 'Pedro López', Teléfono: '+34 634 567 890',
+        Email: 'pedro@canalsur.es', CIF: 'B11223344', Web: '', 'Valoración Google': '',
+        'Fase del Pipeline': 'Lead', 'Comunidad Autónoma': 'Andalucía', 'Potencial CAES': 'Bajo', 'Potencial Energía': '',
+        ...leadSourceHeaders, 'Origen: Recomendación partner': 'Sí',
+        Calle: 'C/ Alcalá 200', Localidad: 'Sevilla', Provincia: 'Sevilla', Notas: '',
+      },
     ];
 
     const ws = XLSX.utils.json_to_sheet(data);
-    ws['!cols'] = [
-      { wch: 25 }, { wch: 20 }, { wch: 18 }, { wch: 25 }, { wch: 12 },
-      { wch: 22 }, { wch: 18 }, { wch: 28 }, { wch: 25 }, { wch: 15 },
-      { wch: 15 }, { wch: 15 }, { wch: 25 },
-    ];
+    // Ancho de columna razonable para todas; las de Origen son más estrechas
+    const baseCols = 13; // columnas "normales" antes de los orígenes
+    const cols = Object.keys(data[0]).map((_, i) => (i < baseCols ? { wch: 20 } : { wch: 14 }));
+    ws['!cols'] = cols;
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Canales');
+
+    // Hoja de ayuda con los valores válidos
+    const helpData = [
+      { Campo: 'Fase del Pipeline', 'Valores válidos': stageOptionsLabel, Notas: 'Si se deja vacío o no coincide, se asigna "Lead"' },
+      { Campo: 'Potencial CAES / Potencial Energía', 'Valores válidos': potencialOptionsLabel, Notas: 'Opcional, dejar vacío si no aplica' },
+      { Campo: 'Comunidad Autónoma', 'Valores válidos': COMUNIDADES_AUTONOMAS.join(' / '), Notas: 'Opcional' },
+      { Campo: 'Origen: [cualquiera]', 'Valores válidos': 'Sí / No (o dejar vacío = No)', Notas: 'Puedes marcar varios orígenes a la vez con "Sí"' },
+      { Campo: 'Valoración Google', 'Valores válidos': '0.5 a 5 (o dejar vacío)', Notas: '' },
+    ];
+    const wsHelp = XLSX.utils.json_to_sheet(helpData);
+    wsHelp['!cols'] = [{ wch: 30 }, { wch: 60 }, { wch: 45 }];
+    XLSX.utils.book_append_sheet(wb, wsHelp, 'Ayuda - valores válidos');
+
     XLSX.writeFile(wb, 'plantilla_canales_kamapp.xlsx');
   };
 
@@ -159,13 +237,14 @@ function FileUploadStep({ onFileParsed }) {
       <div className="mt-5 bg-surface-1 border border-surface-3 rounded-xl p-4">
         <h3 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-2">Cómo preparar tu Excel</h3>
         <div className="text-xs text-text-muted space-y-1.5">
-          <p>1. Descarga la <strong>plantilla Excel</strong> con el botón de arriba</p>
+          <p>1. Descarga la <strong>plantilla Excel</strong> con el botón de arriba (incluye una hoja de ayuda con los valores válidos)</p>
           <p>2. Rellena los datos de tus canales (uno por fila)</p>
           <p>3. La columna <strong>Nombre</strong> es obligatoria, el resto son opcionales</p>
-          <p>4. Campos disponibles: <span className="text-text-secondary">Nombre, Contacto, Teléfono, Email, CIF, Web, Valoración Google, Origen del lead, Calle, Localidad, Provincia, Estado, Notas</span></p>
-          <p>5. Estados válidos: <span className="text-text-secondary">Prospecto, En desarrollo, Activo, Inactivo</span></p>
-          <p>6. Sube el archivo y revisa la previsualización antes de importar</p>
-          <p>7. La clasificación del canal (Energia/Solar/CAEs/Otros) se asigna después desde la ficha</p>
+          <p>4. <strong>Fase del Pipeline</strong>: si la dejas vacía, el canal entra como "Lead"</p>
+          <p>5. <strong>Origen del lead</strong>: marca "Sí" en una o varias columnas de origen — puedes dejar varias marcadas a la vez</p>
+          <p>6. <strong>Potencial CAES / Energía</strong> y <strong>Comunidad Autónoma</strong> son opcionales</p>
+          <p>7. Sube el archivo y revisa la previsualización antes de importar</p>
+          <p>8. La clasificación detallada del canal (Energia/Solar/CAEs/Otros &gt; subtipo) se asigna después desde la ficha</p>
         </div>
       </div>
     </div>
@@ -182,6 +261,11 @@ function MappingStep({ fileData, onMapped, onBack }) {
 
     headers.forEach(h => {
       const n = normalize(h);
+
+      // Detectar columnas de origen del lead ("Origen: X") por coincidencia exacta de label
+      const leadMatch = LEAD_SOURCE_FIELDS.find(f => n === normalize(`Origen: ${LEAD_SOURCE_OPTIONS.find(o => o.value === f.leadSourceValue)?.label || ''}`));
+      if (leadMatch) { autoMap[h] = leadMatch.key; return; }
+
       if (n.includes('nombre') || n === 'name' || n === 'canal' || n === 'empresa') autoMap[h] = 'name';
       else if (n.includes('contacto') || n.includes('contact') || n.includes('persona')) autoMap[h] = 'contact_name';
       else if (n.includes('telefono') || n.includes('phone') || n.includes('tel') || n.includes('movil')) autoMap[h] = 'phone';
@@ -189,13 +273,15 @@ function MappingStep({ fileData, onMapped, onBack }) {
       else if (n === 'cif' || n === 'nif' || n === 'nie' || n.includes('fiscal')) autoMap[h] = 'cif';
       else if (n.includes('web') || n.includes('pagina') || n.includes('url') || n.includes('sitio')) autoMap[h] = 'website';
       else if (n.includes('google') || n.includes('valoracion') || n.includes('rating') || n.includes('puntuacion')) autoMap[h] = 'google_rating';
-      else if (n.includes('origen') || n.includes('source') || n.includes('lead') || n.includes('procedencia') || n.includes('captacion')) autoMap[h] = 'lead_source';
+      else if (n.includes('fasepipeline') || n.includes('fase') || n.includes('stage')) autoMap[h] = 'pipeline_stage';
+      else if (n.includes('comunidadautonoma') || n.includes('ccaa')) autoMap[h] = 'comunidad_autonoma';
+      else if (n.includes('potencialcaes')) autoMap[h] = 'potencial_caes';
+      else if (n.includes('potencialenergia')) autoMap[h] = 'potencial_energia';
       else if (n.includes('volumen') || n.includes('volume') || n.includes('cantidad')) autoMap[h] = 'volume_amount';
-      else if (n.includes('tipo volumen') || n.includes('unidad') || n.includes('medida')) autoMap[h] = 'volume_unit';
+      else if (n.includes('tipovolumen') || n.includes('unidad') || n.includes('medida')) autoMap[h] = 'volume_unit';
       else if (n.includes('direccion') || n.includes('address') || n.includes('calle') || n.includes('domicilio')) autoMap[h] = 'address';
       else if (n.includes('localidad') || n.includes('ciudad') || n.includes('city') || n.includes('poblacion') || n.includes('municipio')) autoMap[h] = 'city';
       else if (n.includes('provincia') || n.includes('province') || n.includes('region')) autoMap[h] = 'province';
-      else if (n.includes('estado') || n.includes('status') || n.includes('situacion')) autoMap[h] = 'status';
       else if (n.includes('nota') || n.includes('note') || n.includes('observ') || n.includes('comentario') || n.includes('descripcion')) autoMap[h] = 'notes';
     });
     return autoMap;
@@ -252,14 +338,26 @@ function MappingStep({ fileData, onMapped, onBack }) {
                   mapped ? 'bg-brand-50 border-brand-200 text-brand-700 font-semibold' : 'bg-white border-surface-3 text-text-muted'
                 }`}>
                 <option value="">— No importar —</option>
-                {CHANNEL_FIELDS.map(f => {
-                  const usedBy = Object.entries(mapping).find(([k, v]) => v === f.key && k !== header);
-                  return (
-                    <option key={f.key} value={f.key} disabled={!!usedBy}>
-                      {f.label}{f.required ? ' *' : ''}{usedBy ? ` (→ ${usedBy[0]})` : ''}
-                    </option>
-                  );
-                })}
+                <optgroup label="Datos del canal">
+                  {CHANNEL_FIELDS.map(f => {
+                    const usedBy = Object.entries(mapping).find(([k, v]) => v === f.key && k !== header);
+                    return (
+                      <option key={f.key} value={f.key} disabled={!!usedBy}>
+                        {f.label}{f.required ? ' *' : ''}{usedBy ? ` (→ ${usedBy[0]})` : ''}
+                      </option>
+                    );
+                  })}
+                </optgroup>
+                <optgroup label="Origen del lead (Sí/No)">
+                  {LEAD_SOURCE_FIELDS.map(f => {
+                    const usedBy = Object.entries(mapping).find(([k, v]) => v === f.key && k !== header);
+                    return (
+                      <option key={f.key} value={f.key} disabled={!!usedBy}>
+                        {f.label}{usedBy ? ` (→ ${usedBy[0]})` : ''}
+                      </option>
+                    );
+                  })}
+                </optgroup>
               </select>
             </div>
           );
@@ -284,27 +382,33 @@ function MappingStep({ fileData, onMapped, onBack }) {
 
 // ============ STEP 3: PREVIEW & IMPORT ============
 function PreviewStep({ rows, mapping, onImport, onBack, importing, result }) {
-  const STATUS_LABELS = { prospect: 'Prospecto', developing: 'En desarrollo', active: 'Activo', inactive: 'Inactivo' };
-
   const mappedRows = rows.map(row => {
-    const mapped = {};
+    const mapped = { lead_source: [] };
+
     Object.entries(mapping).forEach(([excelCol, field]) => {
-      let value = row[excelCol]?.trim() || '';
-      if (field === 'status') value = STATUS_MAP[value.toLowerCase()] || 'prospect';
-      if (field === 'lead_source') {
-        const v = value.toLowerCase();
-        if (v.includes('web') || v.includes('inbound')) value = 'inbound_web';
-        else if (v.includes('navigator') || v.includes('sales')) value = 'outbound_navigator';
-        else if (v.includes('referid')) value = 'outbound_referidos';
-        else if (v.includes('outbound') || v.includes('otro')) value = 'outbound_otros';
-        else if (value) value = value; // keep as-is if not recognized
+      const rawValue = row[excelCol]?.trim() || '';
+
+      // Columnas de origen del lead: si está marcada como afirmativa, añadir ese origen al array
+      if (field.startsWith('lead_source__')) {
+        const leadSourceValue = field.replace('lead_source__', '');
+        if (isAffirmative(rawValue)) mapped.lead_source.push(leadSourceValue);
+        return;
       }
+
+      let value = rawValue;
+      if (field === 'pipeline_stage') value = parsePipelineStage(value);
+      if (field === 'potencial_caes' || field === 'potencial_energia') value = parsePotencial(value);
+      if (field === 'comunidad_autonoma') value = parseComunidadAutonoma(value);
       if (field === 'google_rating') {
-        if (value && !isNaN(parseFloat(value))) value = parseFloat(value);
-        else value = null;
+        value = (value && !isNaN(parseFloat(value))) ? parseFloat(value) : null;
       }
       mapped[field] = value;
     });
+
+    // Si no se mapeó ninguna columna de Fase del Pipeline, por defecto "lead"
+    if (!mapped.pipeline_stage) mapped.pipeline_stage = 'lead';
+    mapped.status = stageToStatus(mapped.pipeline_stage);
+
     return mapped;
   });
 
@@ -323,7 +427,7 @@ function PreviewStep({ rows, mapping, onImport, onBack, importing, result }) {
           {result.errors > 0 && ` · ${result.errors} con errores`}
         </p>
         <p className="text-xs text-text-muted mb-6">
-          Recuerda asignar la clasificación (Energia/Solar/CAEs) desde la ficha de cada canal
+          Recuerda asignar la clasificación detallada (Energia/Solar/CAEs &gt; subtipo) desde la ficha de cada canal
         </p>
         <button onClick={() => window.location.href = '/channels'}
           className="px-6 py-2.5 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl transition-colors">
@@ -354,27 +458,34 @@ function PreviewStep({ rows, mapping, onImport, onBack, importing, result }) {
               <th className="text-left p-2.5 text-[10px] font-bold text-text-muted uppercase tracking-wider">Nombre</th>
               <th className="text-left p-2.5 text-[10px] font-bold text-text-muted uppercase tracking-wider">Contacto</th>
               <th className="text-left p-2.5 text-[10px] font-bold text-text-muted uppercase tracking-wider">Teléfono</th>
-              <th className="text-left p-2.5 text-[10px] font-bold text-text-muted uppercase tracking-wider">CIF</th>
               <th className="text-left p-2.5 text-[10px] font-bold text-text-muted uppercase tracking-wider">Localidad</th>
-              <th className="text-left p-2.5 text-[10px] font-bold text-text-muted uppercase tracking-wider">Estado</th>
+              <th className="text-left p-2.5 text-[10px] font-bold text-text-muted uppercase tracking-wider">Fase</th>
+              <th className="text-left p-2.5 text-[10px] font-bold text-text-muted uppercase tracking-wider">Origen del lead</th>
             </tr>
           </thead>
           <tbody>
-            {validRows.slice(0, 25).map((row, i) => (
-              <tr key={i} className="border-b border-surface-3 last:border-0 hover:bg-surface-1">
-                <td className="p-2.5 text-text-muted text-xs">{i + 1}</td>
-                <td className="p-2.5 font-semibold text-text-primary">{row.name}</td>
-                <td className="p-2.5 text-text-secondary text-xs">{row.contact_name || '-'}</td>
-                <td className="p-2.5 text-text-secondary text-xs">{row.phone || '-'}</td>
-                <td className="p-2.5 text-text-secondary text-xs">{row.cif || '-'}</td>
-                <td className="p-2.5 text-text-secondary text-xs">{row.city || '-'}</td>
-                <td className="p-2.5">
-                  <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-surface-2 text-text-secondary">
-                    {STATUS_LABELS[row.status] || 'Prospecto'}
-                  </span>
-                </td>
-              </tr>
-            ))}
+            {validRows.slice(0, 25).map((row, i) => {
+              const stageInfo = CREATABLE_PIPELINE_STAGES.find(s => s.key === row.pipeline_stage);
+              return (
+                <tr key={i} className="border-b border-surface-3 last:border-0 hover:bg-surface-1">
+                  <td className="p-2.5 text-text-muted text-xs">{i + 1}</td>
+                  <td className="p-2.5 font-semibold text-text-primary">{row.name}</td>
+                  <td className="p-2.5 text-text-secondary text-xs">{row.contact_name || '-'}</td>
+                  <td className="p-2.5 text-text-secondary text-xs">{row.phone || '-'}</td>
+                  <td className="p-2.5 text-text-secondary text-xs">{row.city || '-'}</td>
+                  <td className="p-2.5">
+                    <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-surface-2 text-text-secondary">
+                      {stageInfo?.label || 'Lead'}
+                    </span>
+                  </td>
+                  <td className="p-2.5 text-text-secondary text-xs">
+                    {row.lead_source.length > 0
+                      ? row.lead_source.map(v => LEAD_SOURCE_OPTIONS.find(o => o.value === v)?.label || v).join(', ')
+                      : '-'}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
         {validRows.length > 25 && (
@@ -430,14 +541,17 @@ export default function ImportPage() {
         cif: row.cif || null,
         website: row.website || null,
         google_rating: row.google_rating != null && row.google_rating !== '' ? row.google_rating : null,
-        lead_source: row.lead_source || null,
+        lead_source: row.lead_source?.length > 0 ? row.lead_source : null,
+        potencial_caes: row.potencial_caes || null,
+        potencial_energia: row.potencial_energia || null,
+        comunidad_autonoma: row.comunidad_autonoma || null,
         volume_amount: row.volume_amount && !isNaN(parseFloat(row.volume_amount)) ? parseFloat(row.volume_amount) : null,
         volume_unit: row.volume_unit ? row.volume_unit.toLowerCase().replace(/\s/g, '') : null,
         address: row.address || null,
         city: row.city || null,
         province: row.province || null,
-        status: row.status || 'prospect',
-        pipeline_stage: row.status === 'active' ? 'active' : 'lead',
+        status: row.status,
+        pipeline_stage: row.pipeline_stage,
         notes: row.notes || null,
         assigned_to: user.id,
       }));
