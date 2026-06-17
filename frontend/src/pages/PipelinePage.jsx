@@ -10,17 +10,36 @@ import {
   Calendar, Users, TrendingUp, Clock, Building2
 } from 'lucide-react';
 
-const STAGES = [
-  { key: 'lead',          label: 'Lead',          color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.25)' },
-  { key: 'first_contact', label: 'Contacto',       color: '#60a5fa', bg: 'rgba(96,165,250,0.1)',  border: 'rgba(96,165,250,0.25)'  },
-  { key: 'proposal',      label: 'Propuesta',      color: '#a78bfa', bg: 'rgba(167,139,250,0.1)', border: 'rgba(167,139,250,0.25)' },
-  { key: 'negotiation',   label: 'Negociación',    color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  border: 'rgba(245,158,11,0.25)'  },
-  { key: 'onboarding',    label: 'En proceso alta', color: '#f97316', bg: 'rgba(249,115,22,0.1)', border: 'rgba(249,115,22,0.25)'  },
-  { key: 'active',        label: 'Activo',          color: '#22c55e', bg: 'rgba(34,197,94,0.1)',  border: 'rgba(34,197,94,0.25)'   },
-  { key: 'closed_no_deal', label: 'Sin acuerdo',   color: '#ef4444', bg: 'rgba(239,68,68,0.1)',  border: 'rgba(239,68,68,0.25)'   },
+// Las columnas del Kanban representan ESTADOS (igual que en la pantalla de
+// Canales), no fases de pipeline. Mismo "shape" que el STATUSES anterior para
+// no tener que tocar los componentes que ya consumen stage.color/bg/border.
+const STATUSES = [
+  { key: 'pendiente_contacto', label: 'Pendiente contacto',  color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.25)' },
+  { key: 'en_desarrollo',      label: 'En desarrollo',       color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  border: 'rgba(245,158,11,0.25)'  },
+  { key: 'en_evaluacion',      label: 'En evaluación',       color: '#a78bfa', bg: 'rgba(167,139,250,0.1)', border: 'rgba(167,139,250,0.25)' },
+  { key: 'en_proceso_alta',    label: 'En proceso de alta',  color: '#f97316', bg: 'rgba(249,115,22,0.1)',  border: 'rgba(249,115,22,0.25)'  },
+  { key: 'activo',             label: 'Activo',              color: '#22c55e', bg: 'rgba(34,197,94,0.1)',  border: 'rgba(34,197,94,0.25)'   },
+  { key: 'rechazado',          label: 'Rechazado',           color: '#dc2626', bg: 'rgba(220,38,38,0.1)',  border: 'rgba(220,38,38,0.25)'   },
+  { key: 'cierre_sin_acuerdo', label: 'Cierre sin acuerdo',  color: '#ef4444', bg: 'rgba(239,68,68,0.1)',  border: 'rgba(239,68,68,0.25)'   },
 ];
 
-// stageToStatus se importa de crmConstants (única fuente de verdad en todo el CRM)
+// Nota: el Kanban ahora se organiza por status (no por pipeline_stage), así
+// que el flujo principal es STATUS_TO_DEFAULT_STAGE (abajo), no stageToStatus.
+// stageToStatus se mantiene importado de crmConstants por si se necesita en
+// otra parte de este archivo en el futuro.
+
+// Mapeo inverso: al mover una tarjeta a una columna de ESTADO, qué pipeline_stage
+// le asignamos por defecto (decisión interna, no visible al usuario — las columnas
+// del Kanban son ahora por status, igual que en la pantalla de Canales).
+const STATUS_TO_DEFAULT_STAGE = {
+  pendiente_contacto: 'lead',
+  en_desarrollo:       'first_contact',
+  en_evaluacion:        'first_contact', // sin fase dedicada propia; se asimila a "en desarrollo"
+  en_proceso_alta:     'onboarding',
+  activo:              'active',
+  rechazado:           'closed_no_deal',
+  cierre_sin_acuerdo:  'closed_no_deal',
+};
 
 function daysSince(dateStr) {
   if (!dateStr) return null;
@@ -131,7 +150,6 @@ function ChannelCard({ channel, onDragStart, stage, onClick, typeMap, showKam, d
 // ============ PIPELINE COLUMN ============
 function PipelineColumn({ stage, channels, onDrop, onDragStart, dragOver, setDragOver, onChannelClick, typeMap, showKam, dateType, classificationsByChannel }) {
   const isOver = dragOver === stage.key;
-  const statusLabel = STATUS_CONFIG[stageToStatus(stage.key)]?.label || stage.label;
 
   const volTotals = {};
   channels.forEach(ch => {
@@ -149,7 +167,7 @@ function PipelineColumn({ stage, channels, onDrop, onDragStart, dragOver, setDra
       onDrop={(e) => { e.preventDefault(); const id = e.dataTransfer.getData('text/plain'); onDrop(id, stage.key); setDragOver(null); }}>
       <div className="flex items-center gap-2 mb-1 px-1">
         <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: stage.color }} />
-        <span className="text-xs font-bold uppercase tracking-wider" style={{ color: stage.color }}>{statusLabel}</span>
+        <span className="text-xs font-bold uppercase tracking-wider" style={{ color: stage.color }}>{stage.label}</span>
         <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#dde1e8] text-[#5a6078]">{channels.length}</span>
       </div>
       {hasVolumes && (
@@ -196,7 +214,7 @@ function PipelineMobile({ channelsByStage, onMove, loading, onChannelClick, type
 
   return (
     <div className="space-y-2">
-      {STAGES.map(stage => {
+      {STATUSES.map(stage => {
         const channels = channelsByStage[stage.key] || [];
         const isExpanded = expandedStage === stage.key;
         return (
@@ -229,7 +247,7 @@ function PipelineMobile({ channelsByStage, onMove, loading, onChannelClick, type
                     </div>
                     {movingChannel === ch.id ? (
                       <div className="flex gap-1 flex-wrap justify-end max-w-[180px]">
-                        {STAGES.filter(s => s.key !== stage.key).map(s => (
+                        {STATUSES.filter(s => s.key !== stage.key).map(s => (
                           <button key={s.key} onClick={() => { onMove(ch.id, s.key); setMovingChannel(null); }}
                             className="text-[9px] font-semibold px-2 py-1 rounded-md" style={{ backgroundColor: s.bg, color: s.color, border: `1px solid ${s.border}` }}>{s.label}</button>
                         ))}
@@ -406,34 +424,37 @@ export default function PipelinePage() {
     }
   }
 
-  async function moveChannel(channelId, newStage) {
+  async function moveChannel(channelId, newStatusKey) {
     const oldChannels = [...channels];
     const channel = channels.find(c => c.id === channelId);
-    if (!channel || channel.pipeline_stage === newStage) return;
+    if (!channel || channel.status === newStatusKey) return;
 
-    const oldStageKey = channel.pipeline_stage;
-    const oldStage = STAGES.find(s => s.key === oldStageKey);
-    const newStageObj = STAGES.find(s => s.key === newStage);
+    const oldStatusKey = channel.status;
+    const oldStatusObj = STATUSES.find(s => s.key === oldStatusKey);
+    const newStatusObj = STATUSES.find(s => s.key === newStatusKey);
     const now = new Date().toISOString();
-    const newStatus = stageToStatus(newStage);
+    // pipeline_stage se deriva del estado destino (decisión interna, no se
+    // pide al usuario — ver STATUS_TO_DEFAULT_STAGE más arriba en el archivo)
+    const newPipelineStage = STATUS_TO_DEFAULT_STAGE[newStatusKey] || channel.pipeline_stage;
+    const oldStageKey = channel.pipeline_stage;
 
     setChannels(prev => prev.map(c =>
       c.id === channelId
-        ? { ...c, pipeline_stage: newStage, status: newStatus, pipeline_stage_changed_at: now, updated_at: now }
+        ? { ...c, pipeline_stage: newPipelineStage, status: newStatusKey, pipeline_stage_changed_at: now, updated_at: now }
         : c
     ));
 
     try {
       const { error } = await supabase.from('channels')
-        .update({ pipeline_stage: newStage, status: newStatus, pipeline_stage_changed_at: now })
+        .update({ pipeline_stage: newPipelineStage, status: newStatusKey, pipeline_stage_changed_at: now })
         .eq('id', channelId);
       if (error) throw error;
 
       await supabase.from('channel_pipeline_history').insert({
-        channel_id: channelId, from_stage: oldStageKey, to_stage: newStage, changed_by: user.id,
+        channel_id: channelId, from_stage: oldStageKey, to_stage: newPipelineStage, changed_by: user.id,
       });
 
-      setToast({ message: `${channel.name}: ${oldStage?.label} → ${newStageObj?.label}`, color: newStageObj?.color });
+      setToast({ message: `${channel.name}: ${oldStatusObj?.label} → ${newStatusObj?.label}`, color: newStatusObj?.color });
     } catch (err) {
       setChannels(oldChannels);
       setToast({ message: 'Error al mover canal', color: '#ef4444' });
@@ -462,24 +483,24 @@ export default function PipelinePage() {
     return d >= range.start && d <= range.end;
   });
 
-  // Group by stage
+  // Group by status (igual que en la pantalla de Canales)
   const channelsByStage = {};
-  STAGES.forEach(s => { channelsByStage[s.key] = []; });
+  STATUSES.forEach(s => { channelsByStage[s.key] = []; });
   filteredChannels.forEach(ch => {
-    const key = ch.pipeline_stage;
+    const key = ch.status;
     if (channelsByStage[key]) channelsByStage[key].push(ch);
   });
 
-  // KPIs — excluir lead y los estadosterminal
-  const inProcess = ['first_contact', 'proposal', 'negotiation', 'onboarding'];
-  const totalInPipeline = filteredChannels.filter(c => inProcess.includes(c.pipeline_stage)).length;
-  const newLeads     = filteredChannels.filter(c => c.pipeline_stage === 'lead').length;
-  const advanced     = filteredChannels.filter(c => inProcess.includes(c.pipeline_stage)).length;
-  const closed       = filteredChannels.filter(c => c.pipeline_stage === 'active').length;
-  const closedNoDeal = filteredChannels.filter(c => c.pipeline_stage === 'closed_no_deal').length;
+  // KPIs — excluir pendiente_contacto y los estados terminales
+  const inProcess = ['en_desarrollo', 'en_evaluacion', 'en_proceso_alta'];
+  const totalInPipeline = filteredChannels.filter(c => inProcess.includes(c.status)).length;
+  const newLeads     = filteredChannels.filter(c => c.status === 'pendiente_contacto').length;
+  const advanced     = filteredChannels.filter(c => inProcess.includes(c.status)).length;
+  const closed       = filteredChannels.filter(c => c.status === 'activo').length;
+  const closedNoDeal = filteredChannels.filter(c => ['rechazado', 'cierre_sin_acuerdo'].includes(c.status)).length;
   const avgDays = (() => {
     const withDays = filteredChannels
-      .filter(c => !['active', 'closed_no_deal'].includes(c.pipeline_stage) && c.pipeline_stage_changed_at)
+      .filter(c => !['activo', 'rechazado', 'cierre_sin_acuerdo'].includes(c.status) && c.pipeline_stage_changed_at)
       .map(c => daysSince(c.pipeline_stage_changed_at))
       .filter(d => d !== null);
     return withDays.length > 0 ? Math.round(withDays.reduce((a, b) => a + b, 0) / withDays.length) : 0;
@@ -489,9 +510,9 @@ export default function PipelinePage() {
     const kamChannels = filteredChannels.filter(c => c.assigned_to === kam.id);
     return {
       ...kam,
-      leads:    kamChannels.filter(c => c.pipeline_stage === 'lead').length,
-      pipeline: kamChannels.filter(c => inProcess.includes(c.pipeline_stage)).length,
-      closed:   kamChannels.filter(c => c.pipeline_stage === 'active').length,
+      leads:    kamChannels.filter(c => c.status === 'pendiente_contacto').length,
+      pipeline: kamChannels.filter(c => inProcess.includes(c.status)).length,
+      closed:   kamChannels.filter(c => c.status === 'activo').length,
       total:    kamChannels.length,
     };
   }).filter(k => k.total > 0) : [];
@@ -657,7 +678,7 @@ export default function PipelinePage() {
 
       {/* Progress bar */}
       <div className="flex gap-1 mb-3 h-2 rounded-full overflow-hidden bg-[#dde1e8]">
-        {STAGES.map(stage => {
+        {STATUSES.map(stage => {
           const count = channelsByStage[stage.key]?.length || 0;
           const pct = filteredChannels.length > 0 ? (count / filteredChannels.length) * 100 : 0;
           return pct > 0 ? (
@@ -675,7 +696,7 @@ export default function PipelinePage() {
           classificationsByChannel={classificationsByChannel} />
       ) : (
         <div ref={scrollRef} className="flex gap-2 overflow-x-auto scrollbar-hide pb-4" style={{ minHeight: 300 }}>
-          {STAGES.map(stage => (
+          {STATUSES.map(stage => (
             <PipelineColumn key={stage.key} stage={stage} channels={channelsByStage[stage.key] || []}
               onDrop={moveChannel} onDragStart={setDraggingId} dragOver={dragOver} setDragOver={setDragOver}
               onChannelClick={handleChannelClick} typeMap={typeMap} showKam={showKam} dateType={dateType}
