@@ -110,7 +110,9 @@ export default function ExportPage() {
             'CIF':                 ch.cif || '',
             'Web':                 ch.website || '',
             'Valoración Google':   ch.google_rating != null ? ch.google_rating : '',
-            'Origen del lead':     LEAD_SOURCE_LABELS[ch.lead_source] || ch.lead_source || '',
+            'Origen del lead':     Array.isArray(ch.lead_source)
+              ? ch.lead_source.map(s => LEAD_SOURCE_LABELS[s] || s).join(', ')
+              : (LEAD_SOURCE_LABELS[ch.lead_source] || ch.lead_source || ''),
             'Dirección':           ch.address || '',
             'Ciudad':              ch.city || '',
             'Provincia':           ch.province || '',
