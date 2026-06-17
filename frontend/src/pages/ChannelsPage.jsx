@@ -205,6 +205,7 @@ function ChannelList({ channels, loading, onSelect, filter, setFilter, search, s
 function ChannelDetail({ channelId, onBack, types, typeMap }) {
   const { user } = useAuthContext();
   const [channel, setChannel] = useState(null);
+  const [classifications, setClassifications] = useState([]);
   const [loading, setLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState({});
@@ -218,18 +219,29 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
   async function loadChannel() {
     setLoading(true);
     try {
-      const { data: ch } = await supabase
-        .from('channels')
-        .select('*')
-        .eq('id', channelId)
-        .single();
+      const [{ data: ch }, { data: cls }] = await Promise.all([
+        supabase.from('channels').select('*').eq('id', channelId).single(),
+        supabase.from('channel_classifications').select('*, channel_classification(*)').eq('channel_id', channelId),
+      ]);
       setChannel(ch);
+      setClassifications(cls || []);
       initForm(ch);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
+  }
+
+  // Mismo formato que usa ChannelClassification, para mostrar en el header
+  function formatClassificationLabel(cls) {
+    if (!cls?.channel_classification) return '';
+    const c = cls.channel_classification;
+    let label = c.canal;
+    if (c.subcanal) label += ` > ${c.subcanal}`;
+    if (c.tipo) label += ` > ${c.tipo}`;
+    if (cls.custom_text) label += `: ${cls.custom_text}`;
+    return label;
   }
 
   function initForm(ch) {
@@ -331,7 +343,6 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
   }
 
   const status = STATUS_CONFIG[channel.status] || STATUS_CONFIG.pendiente_contacto;
-  const type = typeMap[channel.channel_type] || channel.channel_type || 'Otro';
   const pipeline = PIPELINE_CONFIG[channel.pipeline_stage] || '-';
 
   return (
@@ -480,7 +491,13 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
               <div className="flex-1">
                 <h2 className="text-lg font-extrabold tracking-tight">{channel.name}</h2>
                 <div className="flex flex-wrap items-center gap-2 mt-1">
-                  <span className="text-xs text-text-secondary">{type}</span>
+                  {classifications.length > 0 ? (
+                    classifications.map(cls => (
+                      <span key={cls.id} className="text-xs text-text-secondary">{formatClassificationLabel(cls)}</span>
+                    ))
+                  ) : (
+                    <span className="text-xs text-text-muted italic">Sin clasificación</span>
+                  )}
                   <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${status.bg} ${status.text}`}>
                     {status.label}
                   </span>
@@ -598,7 +615,7 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
       }} />
 
       <div className="mb-4">
-        <ChannelClassification channelId={channelId} />
+        <ChannelClassification channelId={channelId} onUpdate={setClassifications} />
       </div>
 
       <div className="mb-4">
