@@ -60,7 +60,7 @@ function LeadSourceCheckboxes({ value = [], onChange }) {
 }
 
 // ============ LISTADO DE CANALES ============
-function ChannelList({ channels, loading, onSelect, filter, setFilter, search, setSearch, typeMap, isManager, onBulkReassign }) {
+function ChannelList({ channels, loading, onSelect, filter, setFilter, search, setSearch, typeMap, isManager, onBulkReassign, classificationsByChannel }) {
   const filters = [
     { key: 'all', label: 'Todos', count: channels.length },
     { key: 'activo', label: 'Activos', count: channels.filter(c => c.status === 'activo').length },
@@ -160,7 +160,7 @@ function ChannelList({ channels, loading, onSelect, filter, setFilter, search, s
 
       {!loading && filtered.map(channel => {
         const status = STATUS_CONFIG[channel.status] || STATUS_CONFIG.pendiente_contacto;
-        const type = typeMap[channel.channel_type] || channel.channel_type || 'Otro';
+        const classLabels = (classificationsByChannel?.[channel.id] || []).map(c => c.canal_corto).join(', ');
         const daysSinceVisit = channel.last_visit_at
           ? Math.floor((Date.now() - new Date(channel.last_visit_at).getTime()) / (1000 * 60 * 60 * 24))
           : null;
@@ -177,8 +177,8 @@ function ChannelList({ channels, loading, onSelect, filter, setFilter, search, s
             <div className="flex-1 min-w-0">
               <div className="text-sm font-semibold truncate">{channel.name}</div>
               <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-[11px] text-text-secondary">{type}</span>
-                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${status.bg} ${status.text}`}>
+                <span className="text-[11px] text-text-secondary truncate">{classLabels || 'Sin clasificación'}</span>
+                <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded flex-shrink-0 ${status.bg} ${status.text}`}>
                   {status.label}
                 </span>
               </div>
@@ -941,6 +941,7 @@ export default function ChannelsPage() {
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [showBulkReassign, setShowBulkReassign] = useState(false);
+  const [classificationsByChannel, setClassificationsByChannel] = useState({});
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -978,6 +979,28 @@ export default function ChannelsPage() {
         visits: undefined,
       }));
       setChannels(enriched);
+
+      // Cargar clasificaciones de todos los canales visibles en UNA sola query
+      // (en vez de una por canal, para no disparar N queries en listados grandes)
+      const ids = enriched.map(ch => ch.id);
+      if (ids.length > 0) {
+        const { data: cls } = await supabase
+          .from('channel_classifications')
+          .select('channel_id, channel_classification(canal)')
+          .in('channel_id', ids);
+        const grouped = {};
+        (cls || []).forEach(c => {
+          if (!c.channel_classification) return;
+          if (!grouped[c.channel_id]) grouped[c.channel_id] = [];
+          // Evitar repetir el mismo "canal" varias veces si hay varios subcanales del mismo canal
+          if (!grouped[c.channel_id].some(g => g.canal_corto === c.channel_classification.canal)) {
+            grouped[c.channel_id].push({ canal_corto: c.channel_classification.canal });
+          }
+        });
+        setClassificationsByChannel(grouped);
+      } else {
+        setClassificationsByChannel({});
+      }
     } catch (err) {
       console.error('Error cargando canales:', err);
     } finally {
@@ -996,7 +1019,8 @@ export default function ChannelsPage() {
   return (
     <>
       <ChannelList channels={channels} loading={loading} onSelect={handleSelect} filter={filter} setFilter={setFilter}
-        search={search} setSearch={setSearch} typeMap={typeMap} isManager={isManager} onBulkReassign={() => setShowBulkReassign(true)} />
+        search={search} setSearch={setSearch} typeMap={typeMap} isManager={isManager} onBulkReassign={() => setShowBulkReassign(true)}
+        classificationsByChannel={classificationsByChannel} />
       {showBulkReassign && (
         <BulkReassignModal onClose={() => setShowBulkReassign(false)} onDone={() => loadChannels()} />
       )}
