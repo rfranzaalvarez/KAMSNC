@@ -15,44 +15,14 @@ import { useChannelTypes } from '../hooks/useChannelTypes';
 import { validatePhone, validateEmail, validateCIF } from '../lib/validators';
 import {
   STATUS_CONFIG, PIPELINE_CONFIG,
-  TIPO_CANAL_CAES_OPTIONS, SECTOR_CAE_OPTIONS,
+  CREATABLE_PIPELINE_STAGES,
   POTENCIAL_OPTIONS, COMUNIDADES_AUTONOMAS,
-  LEAD_SOURCE_OPTIONS,
+  LEAD_SOURCE_OPTIONS, stageToStatus,
 } from '../lib/crmConstants';
 import {
   Search, Plus, Building2, Phone, Mail, MapPin,
   ChevronRight, User, X, Check, Loader2, Edit3, Upload, ArrowRightLeft
 } from 'lucide-react';
-
-// ============ MULTISELECT SECTOR CAE ============
-function SectorCAEMultiselect({ value = [], onChange }) {
-  // value es array de strings
-  const toggle = (opt) => {
-    if (value.includes(opt)) {
-      onChange(value.filter(v => v !== opt));
-    } else {
-      onChange([...value, opt]);
-    }
-  };
-  return (
-    <div className="flex flex-wrap gap-1.5 mt-1">
-      {SECTOR_CAE_OPTIONS.map(opt => (
-        <button
-          key={opt}
-          type="button"
-          onClick={() => toggle(opt)}
-          className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors ${
-            value.includes(opt)
-              ? 'bg-brand-500 text-white border-brand-500'
-              : 'bg-surface-0 text-text-secondary border-surface-3 hover:border-brand-400'
-          }`}
-        >
-          {opt}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 // ============ LISTADO DE CANALES ============
 function ChannelList({ channels, loading, onSelect, filter, setFilter, search, setSearch, typeMap, isManager, onBulkReassign }) {
@@ -242,12 +212,10 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
       city: ch?.city || '',
       province: ch?.province || '',
       comunidad_autonoma: ch?.comunidad_autonoma || '',
-      tipo_canal_caes: ch?.tipo_canal_caes || '',
-      sector_cae: ch?.sector_cae || [],
       potencial_caes: ch?.potencial_caes || '',
       potencial_energia: ch?.potencial_energia || '',
+      pipeline_stage: ch?.pipeline_stage || 'lead',
       notes: ch?.notes || '',
-      status: ch?.status || 'pendiente_contacto',
     });
   }
 
@@ -262,13 +230,11 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
       setEditError('El nombre es obligatorio');
       return;
     }
-    if (!editForm.tipo_canal_caes) {
-      setEditError('El tipo de canal CAES es obligatorio');
-      return;
-    }
     setSaving(true);
     setEditError('');
     try {
+      const now = new Date().toISOString();
+      const stageChanged = editForm.pipeline_stage !== channel.pipeline_stage;
       const { error } = await supabase
         .from('channels')
         .update({
@@ -285,16 +251,23 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
           city: editForm.city || null,
           province: editForm.province || null,
           comunidad_autonoma: editForm.comunidad_autonoma || null,
-          tipo_canal_caes: editForm.tipo_canal_caes || null,
-          sector_cae: editForm.sector_cae?.length > 0 ? editForm.sector_cae : null,
           potencial_caes: editForm.potencial_caes || null,
           potencial_energia: editForm.potencial_energia || null,
+          pipeline_stage: editForm.pipeline_stage,
+          status: stageToStatus(editForm.pipeline_stage),
+          ...(stageChanged ? { pipeline_stage_changed_at: now } : {}),
           notes: editForm.notes || null,
-          status: editForm.status,
         })
         .eq('id', channelId);
       if (error) throw error;
-      setChannel(prev => ({ ...prev, ...editForm, name: editForm.name.trim() }));
+
+      if (stageChanged) {
+        await supabase.from('channel_pipeline_history').insert({
+          channel_id: channelId, from_stage: channel.pipeline_stage, to_stage: editForm.pipeline_stage, changed_by: user.id,
+        }).catch(() => {});
+      }
+
+      setChannel(prev => ({ ...prev, ...editForm, name: editForm.name.trim(), status: stageToStatus(editForm.pipeline_stage) }));
       setEditMode(false);
     } catch (err) {
       setEditError(err.message || 'Error al guardar');
@@ -345,54 +318,33 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
               <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3 text-xs text-red-600">{editError}</div>
             )}
             <div className="space-y-3">
-              {/* Nombre */}
               <div>
                 <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Nombre *</label>
                 <input type="text" value={editForm.name} onChange={(e) => updateField('name', e.target.value)}
                   className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500" />
               </div>
 
-              {/* Estado */}
+              {/* Fase del pipeline — controla status automáticamente */}
               <div>
-                <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Estado</label>
-                <select value={editForm.status} onChange={(e) => updateField('status', e.target.value)}
+                <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Fase del Pipeline</label>
+                <select value={editForm.pipeline_stage} onChange={(e) => updateField('pipeline_stage', e.target.value)}
                   className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500">
-                  {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
-                    <option key={key} value={key}>{cfg.label}</option>
+                  {Object.entries(PIPELINE_CONFIG).map(([key, label]) => (
+                    <option key={key} value={key}>{label}</option>
                   ))}
                 </select>
+                <p className="text-[10px] text-text-muted mt-1">
+                  Estado derivado: <span className="font-semibold">{STATUS_CONFIG[stageToStatus(editForm.pipeline_stage)]?.label}</span>
+                </p>
               </div>
 
-              {/* Tipo canal CAES */}
-              <div>
-                <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">
-                  Tipo de canal CAES *
-                </label>
-                <select value={editForm.tipo_canal_caes} onChange={(e) => updateField('tipo_canal_caes', e.target.value)}
-                  className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500">
-                  <option value="">Seleccionar...</option>
-                  {TIPO_CANAL_CAES_OPTIONS.map(opt => (
-                    <option key={opt} value={opt}>{opt}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Sector CAE */}
-              <div>
-                <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Sector CAE objetivo</label>
-                <SectorCAEMultiselect value={editForm.sector_cae || []} onChange={(v) => updateField('sector_cae', v)} />
-              </div>
-
-              {/* Potencial */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Potencial CAES</label>
                   <select value={editForm.potencial_caes} onChange={(e) => updateField('potencial_caes', e.target.value)}
                     className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500">
                     <option value="">-</option>
-                    {POTENCIAL_OPTIONS.map(opt => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
+                    {POTENCIAL_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
                 </div>
                 <div>
@@ -400,26 +352,20 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
                   <select value={editForm.potencial_energia} onChange={(e) => updateField('potencial_energia', e.target.value)}
                     className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500">
                     <option value="">-</option>
-                    {POTENCIAL_OPTIONS.map(opt => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
+                    {POTENCIAL_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
                 </div>
               </div>
 
-              {/* Comunidad Autónoma */}
               <div>
                 <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Comunidad Autónoma</label>
                 <select value={editForm.comunidad_autonoma} onChange={(e) => updateField('comunidad_autonoma', e.target.value)}
                   className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500">
                   <option value="">Seleccionar...</option>
-                  {COMUNIDADES_AUTONOMAS.map(ca => (
-                    <option key={ca} value={ca}>{ca}</option>
-                  ))}
+                  {COMUNIDADES_AUTONOMAS.map(ca => <option key={ca} value={ca}>{ca}</option>)}
                 </select>
               </div>
 
-              {/* Contacto */}
               <div>
                 <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Contacto</label>
                 <input type="text" value={editForm.contact_name} onChange={(e) => updateField('contact_name', e.target.value)}
@@ -464,7 +410,6 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
                   placeholder="https://www.ejemplo.com" className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500" />
               </div>
 
-              {/* Origen del lead */}
               <div>
                 <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Origen del lead</label>
                 <select value={editForm.lead_source} onChange={(e) => updateField('lead_source', e.target.value)}
@@ -521,16 +466,8 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
               </button>
             </div>
 
-            {/* Datos CAES */}
-            {(channel.tipo_canal_caes || channel.potencial_caes || channel.potencial_energia || channel.comunidad_autonoma) && (
+            {(channel.potencial_caes || channel.potencial_energia || channel.comunidad_autonoma) && (
               <div className="bg-brand-500/5 border border-brand-500/15 rounded-xl p-3 mb-3 space-y-1.5">
-                <div className="text-[10px] font-bold text-brand-400 uppercase tracking-wider mb-2">CAES</div>
-                {channel.tipo_canal_caes && (
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="text-text-muted w-20 flex-shrink-0">Tipo canal</span>
-                    <span className="text-text-primary font-semibold">{channel.tipo_canal_caes}</span>
-                  </div>
-                )}
                 {channel.comunidad_autonoma && (
                   <div className="flex items-center gap-2 text-xs">
                     <span className="text-text-muted w-20 flex-shrink-0">CCAA</span>
@@ -551,16 +488,6 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
                         <PotencialBadge value={channel.potencial_energia} />
                       </div>
                     )}
-                  </div>
-                )}
-                {channel.sector_cae?.length > 0 && (
-                  <div>
-                    <div className="text-[10px] text-text-muted mb-1">Sectores CAE</div>
-                    <div className="flex flex-wrap gap-1">
-                      {channel.sector_cae.map(s => (
-                        <span key={s} className="px-2 py-0.5 bg-brand-500/10 text-brand-400 rounded-full text-[10px] font-semibold">{s}</span>
-                      ))}
-                    </div>
                   </div>
                 )}
               </div>
@@ -633,37 +560,30 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
         )}
       </div>
 
-      {/* Reasignar KAM (solo managers) */}
       <ChannelReassign channel={channel} onReassigned={(kamId) => {
         setChannel(prev => ({ ...prev, assigned_to: kamId }));
       }} />
 
-      {/* Clasificación del canal */}
       <div className="mb-4">
         <ChannelClassification channelId={channelId} />
       </div>
 
-      {/* Análisis de empresa */}
       <div className="mb-4">
         <CompanyAnalysis channel={channel} onChannelUpdate={setChannel} />
       </div>
 
-      {/* Actividad del canal */}
       <div className="mb-4">
         <ActivityTimeline channel={channel} />
       </div>
 
-      {/* Volumen Anual Negociado */}
       <div className="mb-4">
         <VolumeEditor channel={channel} onChannelUpdate={setChannel} />
       </div>
 
-      {/* Plan de cuenta */}
       <div className="mb-4">
         <AccountPlan channelId={channelId} channelName={channel.name} />
       </div>
 
-      {/* Brief pre-visita con IA */}
       <div className="mb-4">
         <PreVisitBrief channelId={channelId} channelName={channel.name} />
       </div>
@@ -671,7 +591,6 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
   );
 }
 
-// Badge de potencial con color
 function PotencialBadge({ value }) {
   const colors = {
     'Bajo': 'bg-gray-500/20 text-gray-400',
@@ -686,7 +605,7 @@ function PotencialBadge({ value }) {
   );
 }
 
-// ============ FORMULARIO NUEVO CANAL (WIZARD 3 PASOS) ============
+// ============ FORMULARIO NUEVO CANAL (WIZARD 3 PASOS REORGANIZADO) ============
 function NewChannelForm({ onBack, onSaved, types }) {
   const { user } = useAuthContext();
   const [step, setStep] = useState(1);
@@ -695,13 +614,21 @@ function NewChannelForm({ onBack, onSaved, types }) {
   const [classificationError, setClassificationError] = useState('');
   const [classifications, setClassifications] = useState([]);
   const [fieldErrors, setFieldErrors] = useState({});
+
+  // ---- PASO 1: solo datos de identificación/contacto ----
   const [form, setForm] = useState({
     name: '', contact_name: '', phone: '', email: '',
     cif: '', website: '', google_rating: '', lead_source: '',
-    address: '', city: '', province: '',
-    comunidad_autonoma: '', tipo_canal_caes: '',
-    sector_cae: [], potencial_caes: '', potencial_energia: '',
-    notes: '',
+  });
+
+  // ---- PASO 2: clasificación + potenciales condicionados ----
+  const [potencialCaes, setPotencialCaes] = useState('');
+  const [potencialEnergia, setPotencialEnergia] = useState('');
+
+  // ---- PASO 3: fase del pipeline + ubicación + notas ----
+  const [locationForm, setLocationForm] = useState({
+    pipeline_stage: 'lead',
+    comunidad_autonoma: '', address: '', city: '', province: '', notes: '',
   });
 
   const update = (field, value) => {
@@ -710,12 +637,17 @@ function NewChannelForm({ onBack, onSaved, types }) {
     if (field === 'email') { const v = validateEmail(value); setFieldErrors(prev => ({ ...prev, email: v.valid ? '' : v.error })); }
     if (field === 'cif') { const v = validateCIF(value); setFieldErrors(prev => ({ ...prev, cif: v.valid ? '' : v.error })); }
   };
+  const updateLocation = (field, value) => setLocationForm(prev => ({ ...prev, [field]: value }));
+
+  // Detecta si la clasificación elegida toca CAEs y/o Energía/Solar, para mostrar
+  // los campos de potencial correspondientes (y solo esos) en el paso 2.
+  const touchesCaes = classifications.some(c => c.canal === 'CAEs');
+  const touchesEnergia = classifications.some(c => c.canal === 'Energia' || c.canal === 'Solar');
 
   function nextStep() {
     setError('');
     if (step === 1) {
       if (!form.name.trim()) { setError('El nombre del canal es obligatorio'); return; }
-      if (!form.tipo_canal_caes) { setError('El tipo de canal CAES es obligatorio'); return; }
       const phoneV = validatePhone(form.phone);
       const emailV = validateEmail(form.email);
       const cifV = validateCIF(form.cif);
@@ -743,14 +675,13 @@ function NewChannelForm({ onBack, onSaved, types }) {
         cif: form.cif || null, website: form.website || null,
         google_rating: form.google_rating && form.google_rating !== 'no_tiene' ? parseFloat(form.google_rating) : null,
         lead_source: form.lead_source || null,
-        address: form.address || null, city: form.city || null, province: form.province || null,
-        comunidad_autonoma: form.comunidad_autonoma || null,
-        tipo_canal_caes: form.tipo_canal_caes || null,
-        sector_cae: form.sector_cae?.length > 0 ? form.sector_cae : null,
-        potencial_caes: form.potencial_caes || null,
-        potencial_energia: form.potencial_energia || null,
-        notes: form.notes || null,
-        assigned_to: user.id, status: 'pendiente_contacto', pipeline_stage: 'lead',
+        potencial_caes: touchesCaes ? (potencialCaes || null) : null,
+        potencial_energia: touchesEnergia ? (potencialEnergia || null) : null,
+        pipeline_stage: locationForm.pipeline_stage,
+        status: stageToStatus(locationForm.pipeline_stage),
+        comunidad_autonoma: locationForm.comunidad_autonoma || null,
+        address: locationForm.address || null, city: locationForm.city || null, province: locationForm.province || null,
+        notes: locationForm.notes || null, assigned_to: user.id,
       }).select().single();
       if (insertError) throw insertError;
       const classInserts = classifications.map(c => ({ channel_id: data.id, classification_id: c.classification_id, custom_text: c.custom_text || null }));
@@ -761,7 +692,7 @@ function NewChannelForm({ onBack, onSaved, types }) {
   }
 
   const fieldClass = "w-full px-3 py-2.5 bg-surface-0 border border-surface-3 rounded-xl text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-500 transition-colors";
-  const STEPS = [{ num: 1, label: 'Datos básicos' }, { num: 2, label: 'Clasificación' }, { num: 3, label: 'Ubicación y notas' }];
+  const STEPS = [{ num: 1, label: 'Datos básicos' }, { num: 2, label: 'Clasificación' }, { num: 3, label: 'Fase, ubicación y notas' }];
 
   return (
     <div>
@@ -785,56 +716,17 @@ function NewChannelForm({ onBack, onSaved, types }) {
 
       {error && <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 mb-4 text-sm text-red-400">{error}</div>}
 
-      {/* PASO 1: Datos básicos */}
+      {/* ============ PASO 1: Datos básicos (solo identificación/contacto) ============ */}
       {step === 1 && (
         <div className="space-y-3">
           <div>
             <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Nombre del canal *</label>
             <input type="text" value={form.name} onChange={(e) => update('name', e.target.value)} placeholder="Nombre del canal o empresa" className={fieldClass} autoFocus />
           </div>
-
-          {/* Tipo canal CAES — obligatorio */}
-          <div>
-            <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">
-              Tipo de canal CAES *
-            </label>
-            <select value={form.tipo_canal_caes} onChange={(e) => update('tipo_canal_caes', e.target.value)} className={fieldClass}>
-              <option value="">Seleccionar...</option>
-              {TIPO_CANAL_CAES_OPTIONS.map(opt => (
-                <option key={opt} value={opt}>{opt}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Sector CAE */}
-          <div>
-            <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Sector CAE objetivo</label>
-            <SectorCAEMultiselect value={form.sector_cae} onChange={(v) => update('sector_cae', v)} />
-          </div>
-
-          {/* Potencial */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Potencial CAES</label>
-              <select value={form.potencial_caes} onChange={(e) => update('potencial_caes', e.target.value)} className={fieldClass}>
-                <option value="">-</option>
-                {POTENCIAL_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Potencial Energía</label>
-              <select value={form.potencial_energia} onChange={(e) => update('potencial_energia', e.target.value)} className={fieldClass}>
-                <option value="">-</option>
-                {POTENCIAL_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-              </select>
-            </div>
-          </div>
-
           <div>
             <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Persona de contacto</label>
             <input type="text" value={form.contact_name} onChange={(e) => update('contact_name', e.target.value)} placeholder="Nombre del contacto principal" className={fieldClass} />
           </div>
-
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Teléfono</label>
@@ -847,7 +739,6 @@ function NewChannelForm({ onBack, onSaved, types }) {
               {fieldErrors.email && <p className="text-[10px] text-red-500 mt-0.5">{fieldErrors.email}</p>}
             </div>
           </div>
-
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">CIF</label>
@@ -865,12 +756,10 @@ function NewChannelForm({ onBack, onSaved, types }) {
               </select>
             </div>
           </div>
-
           <div>
             <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Página web</label>
             <input type="url" value={form.website} onChange={(e) => update('website', e.target.value)} placeholder="https://www.ejemplo.com" className={fieldClass} />
           </div>
-
           <div>
             <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Origen del lead</label>
             <select value={form.lead_source} onChange={(e) => update('lead_source', e.target.value)} className={fieldClass}>
@@ -880,15 +769,44 @@ function NewChannelForm({ onBack, onSaved, types }) {
               ))}
             </select>
           </div>
-
           <button onClick={nextStep} className="w-full py-3 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl transition-colors mt-2">Siguiente →</button>
         </div>
       )}
 
-      {/* PASO 2: Clasificación */}
+      {/* ============ PASO 2: Clasificación única + potenciales condicionados ============ */}
       {step === 2 && (
         <div className="space-y-3">
           <ClassificationSelector value={classifications} onChange={(v) => { setClassifications(v); setClassificationError(''); }} error={classificationError} />
+
+          {/* Campos dinámicos: aparecen solo si la clasificación elegida lo justifica */}
+          {(touchesCaes || touchesEnergia) && (
+            <div className="bg-brand-500/5 border border-brand-500/20 rounded-xl p-3 space-y-3">
+              <div className="text-[10px] font-bold text-brand-500 uppercase tracking-wider">
+                Campos según clasificación elegida
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {touchesCaes && (
+                  <div>
+                    <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Potencial CAES</label>
+                    <select value={potencialCaes} onChange={(e) => setPotencialCaes(e.target.value)} className={fieldClass}>
+                      <option value="">-</option>
+                      {POTENCIAL_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  </div>
+                )}
+                {touchesEnergia && (
+                  <div>
+                    <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Potencial Energía</label>
+                    <select value={potencialEnergia} onChange={(e) => setPotencialEnergia(e.target.value)} className={fieldClass}>
+                      <option value="">-</option>
+                      {POTENCIAL_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-2 mt-4">
             <button onClick={prevStep} className="flex-1 py-3 border border-surface-3 text-text-secondary font-semibold rounded-xl text-sm hover:bg-surface-2 transition-colors">← Atrás</button>
             <button onClick={nextStep} className="flex-[2] py-3 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl transition-colors">Siguiente →</button>
@@ -896,13 +814,26 @@ function NewChannelForm({ onBack, onSaved, types }) {
         </div>
       )}
 
-      {/* PASO 3: Ubicación y notas */}
+      {/* ============ PASO 3: Fase del pipeline + ubicación + notas ============ */}
       {step === 3 && (
         <div className="space-y-3">
-          {/* Comunidad Autónoma — aquí por relevancia geográfica */}
+          {/* Fase del pipeline — necesario para que el canal aparezca en el Kanban */}
+          <div className="bg-amber-50 border border-amber-300 rounded-xl p-3">
+            <label className="block text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-1">Fase del Pipeline *</label>
+            <select value={locationForm.pipeline_stage} onChange={(e) => updateLocation('pipeline_stage', e.target.value)}
+              className="w-full px-3 py-2.5 bg-white border border-amber-300 rounded-xl text-sm font-semibold focus:outline-none focus:border-brand-500">
+              {CREATABLE_PIPELINE_STAGES.map(s => (
+                <option key={s.key} value={s.key}>{s.label}</option>
+              ))}
+            </select>
+            <p className="text-[10px] text-amber-600 mt-1">
+              Por defecto "Lead". El estado "{STATUS_CONFIG[stageToStatus(locationForm.pipeline_stage)]?.label}" se asigna automáticamente.
+            </p>
+          </div>
+
           <div>
             <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Comunidad Autónoma</label>
-            <select value={form.comunidad_autonoma} onChange={(e) => update('comunidad_autonoma', e.target.value)} className={fieldClass}>
+            <select value={locationForm.comunidad_autonoma} onChange={(e) => updateLocation('comunidad_autonoma', e.target.value)} className={fieldClass}>
               <option value="">Seleccionar...</option>
               {COMUNIDADES_AUTONOMAS.map(ca => (
                 <option key={ca} value={ca}>{ca}</option>
@@ -910,11 +841,11 @@ function NewChannelForm({ onBack, onSaved, types }) {
             </select>
           </div>
 
-          <AddressFields form={form} update={update} fieldClass={fieldClass} />
+          <AddressFields form={locationForm} update={updateLocation} fieldClass={fieldClass} />
 
           <div>
             <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Notas</label>
-            <textarea value={form.notes} onChange={(e) => update('notes', e.target.value)} placeholder="Notas sobre el canal..." rows={3} className={`${fieldClass} resize-none`} />
+            <textarea value={locationForm.notes} onChange={(e) => updateLocation('notes', e.target.value)} placeholder="Notas sobre el canal..." rows={3} className={`${fieldClass} resize-none`} />
           </div>
 
           {/* Resumen */}
@@ -922,17 +853,6 @@ function NewChannelForm({ onBack, onSaved, types }) {
             <div className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-2">Resumen</div>
             <div className="space-y-1 text-xs text-text-secondary">
               <p><span className="font-semibold text-text-primary">{form.name}</span></p>
-              {form.tipo_canal_caes && <p>🏷️ {form.tipo_canal_caes}</p>}
-              {(form.potencial_caes || form.potencial_energia) && (
-                <p>
-                  {form.potencial_caes ? `CAES: ${form.potencial_caes}` : ''}
-                  {form.potencial_caes && form.potencial_energia ? ' · ' : ''}
-                  {form.potencial_energia ? `Energía: ${form.potencial_energia}` : ''}
-                </p>
-              )}
-              {form.sector_cae?.length > 0 && <p>Sectores: {form.sector_cae.join(', ')}</p>}
-              {form.contact_name && <p>👤 {form.contact_name} {form.phone ? `· ${form.phone}` : ''}</p>}
-              {form.cif && <p>CIF: {form.cif}</p>}
               {classifications.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-1">
                   {classifications.map((c, i) => (
@@ -940,7 +860,16 @@ function NewChannelForm({ onBack, onSaved, types }) {
                   ))}
                 </div>
               )}
-              {form.comunidad_autonoma && <p>📍 {form.comunidad_autonoma}{form.city ? ` · ${form.city}` : ''}</p>}
+              {(potencialCaes || potencialEnergia) && (
+                <p>
+                  {touchesCaes && potencialCaes ? `CAES: ${potencialCaes}` : ''}
+                  {touchesCaes && potencialCaes && touchesEnergia && potencialEnergia ? ' · ' : ''}
+                  {touchesEnergia && potencialEnergia ? `Energía: ${potencialEnergia}` : ''}
+                </p>
+              )}
+              <p>Fase: <span className="font-semibold text-text-primary">{PIPELINE_CONFIG[locationForm.pipeline_stage]}</span></p>
+              {form.contact_name && <p>👤 {form.contact_name} {form.phone ? `· ${form.phone}` : ''}</p>}
+              {locationForm.comunidad_autonoma && <p>📍 {locationForm.comunidad_autonoma}{locationForm.city ? ` · ${locationForm.city}` : ''}</p>}
             </div>
           </div>
 
