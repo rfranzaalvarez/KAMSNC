@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../components/AuthProvider';
 import { useChannelTypes } from '../hooks/useChannelTypes';
 import { formatVolume, getVolumeConfig, VOLUME_UNITS } from '../components/VolumeEditor';
-import { PIPELINE_CONFIG } from '../lib/crmConstants';
+import { PIPELINE_CONFIG, STATUS_CONFIG, stageToStatus } from '../lib/crmConstants';
 import {
   Loader2, ChevronRight, ChevronDown, X, Check, Filter,
   Calendar, Users, TrendingUp, Clock, Building2
@@ -20,15 +20,7 @@ const STAGES = [
   { key: 'closed_no_deal', label: 'Sin acuerdo',   color: '#ef4444', bg: 'rgba(239,68,68,0.1)',  border: 'rgba(239,68,68,0.25)'   },
 ];
 
-// Mapeo stage → status (nuevo esquema)
-function stageToStatus(stage) {
-  if (stage === 'active')         return 'activo';
-  if (stage === 'lead')           return 'pendiente_contacto';
-  if (stage === 'closed_no_deal') return 'cierre_sin_acuerdo';
-  if (stage === 'onboarding')     return 'en_proceso_alta';
-  if (['first_contact', 'proposal', 'negotiation'].includes(stage)) return 'en_desarrollo';
-  return 'pendiente_contacto';
-}
+// stageToStatus se importa de crmConstants (única fuente de verdad en todo el CRM)
 
 function daysSince(dateStr) {
   if (!dateStr) return null;
@@ -60,24 +52,25 @@ function formatShortDate(dateStr) {
 }
 
 // ============ CHANNEL CARD ============
-function ChannelCard({ channel, onDragStart, stage, onClick, typeMap, showKam, dateType }) {
+function ChannelCard({ channel, onDragStart, stage, onClick, typeMap, showKam, dateType, classifications }) {
   const daysInStage = daysSince(channel.pipeline_stage_changed_at || channel.updated_at);
   const lastVisitDays = channel.last_visit_at ? daysSince(channel.last_visit_at) : null;
   const isDragging = useRef(false);
+  const classLabel = (classifications || []).map(c => c.canal_corto).join(', ');
 
   return (
     <div draggable
       onDragStart={(e) => { isDragging.current = true; e.dataTransfer.setData('text/plain', channel.id); e.dataTransfer.effectAllowed = 'move'; onDragStart(channel.id); }}
       onDragEnd={() => { isDragging.current = false; }}
       onClick={() => { if (!isDragging.current) onClick(channel.id); }}
-      className="bg-[#ffffff] border rounded-xl p-3 cursor-pointer active:cursor-grabbing hover:shadow-md hover:border-opacity-80 transition-all group"
+      className="bg-[#ffffff] border rounded-xl p-2.5 cursor-pointer active:cursor-grabbing hover:shadow-md hover:border-opacity-80 transition-all group"
       style={{ borderColor: stage.border }}>
-      <div className="flex items-start justify-between gap-2 mb-1">
+      <div className="flex items-start justify-between gap-1.5 mb-1">
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-semibold truncate group-hover:text-[#E87A1E] transition-colors">{channel.name}</div>
-          <div className="text-[10px] text-[#5a6078]">{typeMap[channel.channel_type] || channel.channel_type || ''}</div>
+          <div className="text-xs font-semibold truncate group-hover:text-[#E87A1E] transition-colors">{channel.name}</div>
+          <div className="text-[9px] text-[#5a6078] truncate">{classLabel || 'Sin clasificación'}</div>
         </div>
-        <ChevronRight size={12} className="text-[#c5cbd6] group-hover:text-[#E87A1E] transition-colors flex-shrink-0 mt-1" />
+        <ChevronRight size={11} className="text-[#c5cbd6] group-hover:text-[#E87A1E] transition-colors flex-shrink-0 mt-0.5" />
       </div>
 
       {showKam && channel.profiles?.full_name && (
@@ -136,8 +129,9 @@ function ChannelCard({ channel, onDragStart, stage, onClick, typeMap, showKam, d
 }
 
 // ============ PIPELINE COLUMN ============
-function PipelineColumn({ stage, channels, onDrop, onDragStart, dragOver, setDragOver, onChannelClick, typeMap, showKam, dateType }) {
+function PipelineColumn({ stage, channels, onDrop, onDragStart, dragOver, setDragOver, onChannelClick, typeMap, showKam, dateType, classificationsByChannel }) {
   const isOver = dragOver === stage.key;
+  const statusLabel = STATUS_CONFIG[stageToStatus(stage.key)]?.label || stage.label;
 
   const volTotals = {};
   channels.forEach(ch => {
@@ -149,13 +143,13 @@ function PipelineColumn({ stage, channels, onDrop, onDragStart, dragOver, setDra
   const hasVolumes = Object.keys(volTotals).length > 0;
 
   return (
-    <div className="flex flex-col min-w-[200px] max-w-[240px] flex-1"
+    <div className="flex flex-col min-w-[130px] flex-1"
       onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(stage.key); }}
       onDragLeave={() => setDragOver(null)}
       onDrop={(e) => { e.preventDefault(); const id = e.dataTransfer.getData('text/plain'); onDrop(id, stage.key); setDragOver(null); }}>
       <div className="flex items-center gap-2 mb-1 px-1">
         <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: stage.color }} />
-        <span className="text-xs font-bold uppercase tracking-wider" style={{ color: stage.color }}>{stage.label}</span>
+        <span className="text-xs font-bold uppercase tracking-wider" style={{ color: stage.color }}>{statusLabel}</span>
         <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#dde1e8] text-[#5a6078]">{channels.length}</span>
       </div>
       {hasVolumes && (
@@ -175,7 +169,8 @@ function PipelineColumn({ stage, channels, onDrop, onDragStart, dragOver, setDra
         style={isOver ? { ringColor: stage.color } : {}}>
         {channels.map(ch => (
           <ChannelCard key={ch.id} channel={ch} stage={stage} onDragStart={onDragStart}
-            onClick={onChannelClick} typeMap={typeMap} showKam={showKam} dateType={dateType} />
+            onClick={onChannelClick} typeMap={typeMap} showKam={showKam} dateType={dateType}
+            classifications={classificationsByChannel?.[ch.id]} />
         ))}
         {channels.length === 0 && !isOver && (
           <div className="flex items-center justify-center h-20 border border-dashed border-[#dde1e8] rounded-xl">
@@ -323,6 +318,7 @@ export default function PipelinePage() {
   const navigate = useNavigate();
   const { typeMap } = useChannelTypes();
   const [channels, setChannels] = useState([]);
+  const [classificationsByChannel, setClassificationsByChannel] = useState({});
   const [loading, setLoading] = useState(false);
   const [dragOver, setDragOver] = useState(null);
   const [draggingId, setDraggingId] = useState(null);
@@ -382,6 +378,27 @@ export default function PipelinePage() {
       }));
 
       setChannels(enriched);
+
+      // Clasificaciones de todos los canales visibles, en UNA sola query
+      // (mismo patrón que en ChannelsPage, para no disparar N queries)
+      const ids = enriched.map(ch => ch.id);
+      if (ids.length > 0) {
+        const { data: cls } = await supabase
+          .from('channel_classifications')
+          .select('channel_id, channel_classification(canal)')
+          .in('channel_id', ids);
+        const grouped = {};
+        (cls || []).forEach(c => {
+          if (!c.channel_classification) return;
+          if (!grouped[c.channel_id]) grouped[c.channel_id] = [];
+          if (!grouped[c.channel_id].some(g => g.canal_corto === c.channel_classification.canal)) {
+            grouped[c.channel_id].push({ canal_corto: c.channel_classification.canal });
+          }
+        });
+        setClassificationsByChannel(grouped);
+      } else {
+        setClassificationsByChannel({});
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -654,13 +671,15 @@ export default function PipelinePage() {
         <div className="flex items-center justify-center py-16"><Loader2 size={24} className="animate-spin text-[#E87A1E]" /></div>
       ) : isMobile ? (
         <PipelineMobile channelsByStage={channelsByStage} onMove={moveChannel} loading={loading}
-          onChannelClick={handleChannelClick} typeMap={typeMap} showKam={showKam} dateType={dateType} />
+          onChannelClick={handleChannelClick} typeMap={typeMap} showKam={showKam} dateType={dateType}
+          classificationsByChannel={classificationsByChannel} />
       ) : (
-        <div ref={scrollRef} className="flex gap-3 overflow-x-auto scrollbar-hide pb-4" style={{ minHeight: 300 }}>
+        <div ref={scrollRef} className="flex gap-2 overflow-x-auto scrollbar-hide pb-4" style={{ minHeight: 300 }}>
           {STAGES.map(stage => (
             <PipelineColumn key={stage.key} stage={stage} channels={channelsByStage[stage.key] || []}
               onDrop={moveChannel} onDragStart={setDraggingId} dragOver={dragOver} setDragOver={setDragOver}
-              onChannelClick={handleChannelClick} typeMap={typeMap} showKam={showKam} dateType={dateType} />
+              onChannelClick={handleChannelClick} typeMap={typeMap} showKam={showKam} dateType={dateType}
+              classificationsByChannel={classificationsByChannel} />
           ))}
         </div>
       )}
