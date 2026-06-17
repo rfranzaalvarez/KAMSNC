@@ -15,6 +15,7 @@ import ImportPage from './pages/ImportPage';
 import AssistantPage from './pages/AssistantPage';
 import ExportPage from './pages/ExportPage';
 import WeeklyReportPage from './pages/WeeklyReportPage';
+import UserAdminPage from './pages/UserAdminPage';
 
 initOfflineSync();
 
@@ -62,6 +63,16 @@ export default function App() {
               }
             >
               <Route index element={<DashboardPage />} />
+            </Route>
+            <Route
+              path="/admin/users"
+              element={
+                <ProtectedRoute requireDirector>
+                  <AppLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route index element={<UserAdminPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/home" replace />} />
           </Routes>
