@@ -23,6 +23,10 @@ export function AppLayout() {
   const [showMenu, setShowMenu] = useState(false);
   const [showAssistant, setShowAssistant] = useState(false);
 
+  // No existe un campo isDirector dedicado en useAuthContext; se comprueba
+  // directamente el role del profile (mismo patrón que ProtectedRoute).
+  const isDirector = profile?.role === 'director';
+
   useEffect(() => {
     const on = () => setIsOnline(true);
     const off = () => setIsOnline(false);
@@ -90,6 +94,12 @@ export function AppLayout() {
                     <NavLink to="/dashboard" onClick={() => setShowMenu(false)}
                       className="block px-4 py-2.5 text-sm text-text-secondary hover:bg-surface-1 hover:text-text-primary">
                       📊 Dashboard Manager
+                    </NavLink>
+                  )}
+                  {isDirector && (
+                    <NavLink to="/admin/users" onClick={() => setShowMenu(false)}
+                      className="block px-4 py-2.5 text-sm text-text-secondary hover:bg-surface-1 hover:text-text-primary">
+                      👤 Administrar usuarios
                     </NavLink>
                   )}
                   <NavLink to="/import" onClick={() => setShowMenu(false)}
