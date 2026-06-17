@@ -61,11 +61,15 @@ function LeadSourceCheckboxes({ value = [], onChange }) {
 
 // ============ LISTADO DE CANALES ============
 function ChannelList({ channels, loading, onSelect, filter, setFilter, search, setSearch, typeMap, isManager, onBulkReassign, classificationsByChannel }) {
+  // Un filtro por cada estado real del esquema (STATUS_CONFIG), generado
+  // dinámicamente para no tener que tocar este código si se añade un estado nuevo.
   const filters = [
     { key: 'all', label: 'Todos', count: channels.length },
-    { key: 'activo', label: 'Activos', count: channels.filter(c => c.status === 'activo').length },
-    { key: 'en_desarrollo', label: 'En desarrollo', count: channels.filter(c => c.status === 'en_desarrollo').length },
-    { key: 'pendiente_contacto', label: 'Pendientes', count: channels.filter(c => c.status === 'pendiente_contacto').length },
+    ...Object.entries(STATUS_CONFIG).map(([key, cfg]) => ({
+      key,
+      label: cfg.label,
+      count: channels.filter(c => c.status === key).length,
+    })),
   ];
 
   const filtered = channels
