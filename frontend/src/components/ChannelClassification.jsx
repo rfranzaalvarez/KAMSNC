@@ -5,12 +5,15 @@ import { X, ChevronDown, ChevronUp, Check, Loader2, Tag } from 'lucide-react';
 /**
  * Componente de clasificación jerárquica de canales.
  * Permite seleccionar múltiples combinaciones de Canal > Subcanal > Tipo.
- * 
+ *
  * Props:
  * - channelId: ID del canal
  * - readOnly: si es true, solo muestra las clasificaciones (no edita)
+ * - onUpdate: (selected) => void — opcional, se llama con el array actualizado
+ *   cada vez que cambia la selección, para que un componente padre (ej. el
+ *   header de la ficha de canal) pueda mantenerse sincronizado sin recargar.
  */
-export default function ChannelClassification({ channelId, readOnly = false }) {
+export default function ChannelClassification({ channelId, readOnly = false, onUpdate }) {
   const [allClassifications, setAllClassifications] = useState([]);
   const [selected, setSelected] = useState([]); // array de { id, classification_id, custom_text }
   const [loading, setLoading] = useState(true);
@@ -31,7 +34,9 @@ export default function ChannelClassification({ channelId, readOnly = false }) {
       ]);
 
       setAllClassifications(classRes.data || []);
-      setSelected(selectedRes.data || []);
+      const initial = selectedRes.data || [];
+      setSelected(initial);
+      onUpdate?.(initial);
     } catch (err) {
       console.error('Error cargando clasificaciones:', err);
     } finally {
@@ -74,7 +79,9 @@ export default function ChannelClassification({ channelId, readOnly = false }) {
       if (existing) {
         // Deseleccionar
         await supabase.from('channel_classifications').delete().eq('id', existing.id);
-        setSelected(prev => prev.filter(s => s.id !== existing.id));
+        const next = selected.filter(s => s.id !== existing.id);
+        setSelected(next);
+        onUpdate?.(next);
       } else {
         // Seleccionar
         const insert = {
@@ -88,7 +95,9 @@ export default function ChannelClassification({ channelId, readOnly = false }) {
           .select('*, channel_classification(*)')
           .single();
         if (error) throw error;
-        setSelected(prev => [...prev, data]);
+        const next = [...selected, data];
+        setSelected(next);
+        onUpdate?.(next);
         if (classification.canal === 'Otros') setCustomText('');
       }
     } catch (err) {
