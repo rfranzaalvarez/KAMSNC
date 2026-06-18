@@ -1,8 +1,10 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Home, Building2, BarChart3, Trophy, Sparkles, CalendarDays, X } from 'lucide-react';
+import { Home, Building2, BarChart3, Trophy, Sparkles, CalendarDays, X, Bell } from 'lucide-react';
 import { useAuthContext } from './AuthProvider';
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { offlineQueue } from '../lib/offline';
+import { supabase } from '../lib/supabase';
+import { BulkReassignModal } from './ChannelReassign';
 
 const AssistantPage = lazy(() => import('../pages/AssistantPage'));
 
@@ -15,13 +17,110 @@ const baseNavItems = [
   { to: '/pipeline', icon: BarChart3, label: 'Pipeline' },
 ];
 
+// ============ CAMPANITA DE NOTIFICACIONES ============
+function NotificationsBell({ userId, onReassignClick }) {
+  const [alerts, setAlerts] = useState([]);
+  const [showPanel, setShowPanel] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const unreadCount = alerts.filter(a => !a.is_read).length;
+
+  useEffect(() => {
+    if (userId) loadAlerts();
+  }, [userId]);
+
+  async function loadAlerts() {
+    setLoading(true);
+    try {
+      const { data } = await supabase
+        .from('alerts')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_dismissed', false)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      setAlerts(data || []);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function markAsRead(alert) {
+    if (alert.is_read) return;
+    setAlerts(prev => prev.map(a => a.id === alert.id ? { ...a, is_read: true } : a));
+    await supabase.from('alerts').update({ is_read: true }).eq('id', alert.id);
+  }
+
+  function timeAgo(dateStr) {
+    const diffMs = Date.now() - new Date(dateStr).getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return 'ahora';
+    if (diffMin < 60) return `hace ${diffMin}m`;
+    const diffH = Math.floor(diffMin / 60);
+    if (diffH < 24) return `hace ${diffH}h`;
+    return `hace ${Math.floor(diffH / 24)}d`;
+  }
+
+  return (
+    <div className="relative">
+      <button onClick={() => setShowPanel(!showPanel)}
+        className="relative flex items-center justify-center w-9 h-9 rounded-xl text-text-secondary hover:bg-surface-2 transition-colors">
+        <Bell size={18} />
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
+      </button>
+      {showPanel && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setShowPanel(false)} />
+          <div className="absolute right-0 top-11 z-50 bg-white border border-surface-3 rounded-xl shadow-lg w-80 max-h-96 overflow-y-auto">
+            <div className="px-4 py-3 border-b border-surface-3">
+              <span className="text-sm font-bold text-text-primary">Notificaciones</span>
+            </div>
+            {loading ? (
+              <div className="px-4 py-6 text-center text-xs text-text-muted">Cargando...</div>
+            ) : alerts.length === 0 ? (
+              <div className="px-4 py-6 text-center text-xs text-text-muted">Sin notificaciones</div>
+            ) : (
+              alerts.map(a => (
+                <div key={a.id}
+                  className={`px-4 py-3 border-b border-surface-3 last:border-0 transition-colors ${
+                    a.is_read ? 'bg-white' : 'bg-brand-500/5'
+                  }`}>
+                  <button onClick={() => markAsRead(a)} className="w-full text-left">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className={`text-xs font-semibold ${a.is_read ? 'text-text-secondary' : 'text-text-primary'}`}>{a.title}</span>
+                      {!a.is_read && <div className="w-1.5 h-1.5 rounded-full bg-brand-500 flex-shrink-0 mt-1" />}
+                    </div>
+                    {a.detail && <p className="text-[11px] text-text-secondary mt-0.5">{a.detail}</p>}
+                    <span className="text-[10px] text-text-muted mt-1 block">{timeAgo(a.created_at)}</span>
+                  </button>
+                  {a.title === 'Canales reasignados' && onReassignClick && (
+                    <button onClick={() => { markAsRead(a); onReassignClick(); }}
+                      className="mt-2 text-[11px] font-semibold text-brand-500 hover:text-brand-600">
+                      Repartir estos canales →
+                    </button>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function AppLayout() {
-  const { profile, signOut, isManager } = useAuthContext();
+  const { user, profile, signOut, isManager } = useAuthContext();
   const navigate = useNavigate();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingCount, setPendingCount] = useState(0);
   const [showMenu, setShowMenu] = useState(false);
   const [showAssistant, setShowAssistant] = useState(false);
+  const [showReassignModal, setShowReassignModal] = useState(false);
 
   // No existe un campo isDirector dedicado en useAuthContext; se comprueba
   // directamente el role del profile (mismo patrón que ProtectedRoute).
@@ -74,6 +173,8 @@ export function AppLayout() {
             <span className="hidden sm:inline">{showAssistant ? 'Cerrar' : 'Asistente'}</span>
             {!showAssistant && <div className="w-1.5 h-1.5 rounded-full bg-green-500 absolute -top-0.5 -right-0.5" />}
           </button>
+
+          <NotificationsBell userId={user?.id} onReassignClick={() => setShowReassignModal(true)} />
 
           {/* Avatar menu */}
           <div className="relative">
@@ -156,6 +257,17 @@ export function AppLayout() {
             ))}
           </div>
         </nav>
+      )}
+
+      {/* Modal de reasignación, abierto desde una alerta de "Canales reasignados".
+          Se preselecciona al propio usuario como origen, ya que es quien acaba
+          de recibir canales tras la baja de otro usuario. */}
+      {showReassignModal && (
+        <BulkReassignModal
+          initialFromKam={user?.id}
+          onClose={() => setShowReassignModal(false)}
+          onDone={() => {}}
+        />
       )}
     </div>
   );
