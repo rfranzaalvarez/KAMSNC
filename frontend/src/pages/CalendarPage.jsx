@@ -189,7 +189,7 @@ function EventCard({ event, onDelete, onComplete }) {
 
 // ============ MAIN CALENDAR PAGE ============
 export default function CalendarPage() {
-  const { user, profile } = useAuthContext();
+  const { user, profile, isManager } = useAuthContext();
   const [loading, setLoading] = useState(false);
   const [currentWeekStart, setCurrentWeekStart] = useState(getMonday(new Date()));
   const [selectedDay, setSelectedDay] = useState(new Date());
@@ -207,7 +207,12 @@ export default function CalendarPage() {
   useEffect(() => { if (toast) { const t = setTimeout(() => setToast(null), 3000); return () => clearTimeout(t); } }, [toast]);
 
   async function loadChannels() {
-    const { data } = await supabase.from('channels').select('id, name, address, contact_name').eq('assigned_to', user.id).order('name');
+    // FIX: igual que en ChannelsPage/PipelinePage — un manager/director debe
+    // poder planificar acciones sobre CUALQUIER canal del equipo, no solo
+    // los asignados directamente a su propia cuenta.
+    let query = supabase.from('channels').select('id, name, address, contact_name').order('name');
+    if (!isManager) query = query.eq('assigned_to', user.id);
+    const { data } = await query;
     setChannels(data || []);
   }
 
