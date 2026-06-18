@@ -15,12 +15,12 @@ import {
 // no tener que tocar los componentes que ya consumen stage.color/bg/border.
 const STATUSES = [
   { key: 'pendiente_contacto', label: 'Pendiente contacto',  color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.25)' },
-  { key: 'en_desarrollo',      label: 'En desarrollo',       color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  border: 'rgba(245,158,11,0.25)'  },
-  { key: 'en_evaluacion',      label: 'En evaluación',       color: '#a78bfa', bg: 'rgba(167,139,250,0.1)', border: 'rgba(167,139,250,0.25)' },
-  { key: 'en_proceso_alta',    label: 'En proceso de alta',  color: '#f97316', bg: 'rgba(249,115,22,0.1)',  border: 'rgba(249,115,22,0.25)'  },
+  { key: 'en_desarrollo',      label: 'En desarrollo',       color: '#eab308', bg: 'rgba(234,179,8,0.1)',   border: 'rgba(234,179,8,0.25)'   },
+  { key: 'en_evaluacion',      label: 'En evaluación',       color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)', border: 'rgba(139,92,246,0.25)' },
+  { key: 'en_proceso_alta',    label: 'En proceso de alta',  color: '#06b6d4', bg: 'rgba(6,182,212,0.1)',  border: 'rgba(6,182,212,0.25)'   },
   { key: 'activo',             label: 'Activo',              color: '#22c55e', bg: 'rgba(34,197,94,0.1)',  border: 'rgba(34,197,94,0.25)'   },
   { key: 'rechazado',          label: 'Rechazado',           color: '#dc2626', bg: 'rgba(220,38,38,0.1)',  border: 'rgba(220,38,38,0.25)'   },
-  { key: 'cierre_sin_acuerdo', label: 'Cierre sin acuerdo',  color: '#ef4444', bg: 'rgba(239,68,68,0.1)',  border: 'rgba(239,68,68,0.25)'   },
+  { key: 'cierre_sin_acuerdo', label: 'Cierre sin acuerdo',  color: '#db2777', bg: 'rgba(219,39,119,0.1)', border: 'rgba(219,39,119,0.25)'  },
 ];
 
 // Nota: el Kanban ahora se organiza por status (no por pipeline_stage), así
@@ -167,7 +167,7 @@ function PipelineColumn({ stage, channels, onDrop, onDragStart, dragOver, setDra
       onDrop={(e) => { e.preventDefault(); const id = e.dataTransfer.getData('text/plain'); onDrop(id, stage.key); setDragOver(null); }}>
       <div className="flex items-center gap-2 mb-1 px-1 min-w-0">
         <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: stage.color }} />
-        <span className="text-xs font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: stage.color }}>{stage.label}</span>
+        <span className="text-[11px] font-bold uppercase tracking-wide whitespace-nowrap" style={{ color: stage.color }}>{stage.label}</span>
         <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#dde1e8] text-[#5a6078] flex-shrink-0">{channels.length}</span>
       </div>
       {hasVolumes && (
