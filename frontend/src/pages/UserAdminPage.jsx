@@ -142,12 +142,11 @@ function InviteUserForm({ onInvited, allUsers }) {
 }
 
 // ============ FILA DE USUARIO (con edición inline) ============
-function UserRow({ user: u, allUsers, onUpdated, onDeleted, currentUserId }) {
+function UserRow({ user: u, allUsers, onUpdated, onDeactivated, currentUserId }) {
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ role: u.role, zone: u.zone || '', reports_to: u.reports_to || '', phone: u.phone || '' });
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showDeactivateModal, setShowDeactivateModal] = useState(false);
   const [rowError, setRowError] = useState('');
 
   const possibleManagers = allUsers.filter(other => other.id !== u.id && ['coordinator', 'manager', 'director'].includes(other.role));
@@ -179,24 +178,6 @@ function UserRow({ user: u, allUsers, onUpdated, onDeleted, currentUserId }) {
       setRowError(err.message || 'Error al guardar');
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function handleDelete() {
-    setDeleting(true);
-    setRowError('');
-    try {
-      const { data, error: fnError } = await supabase.functions.invoke('manage-users', {
-        body: { action: 'delete_user', user_id: u.id },
-      });
-      if (fnError) throw fnError;
-      if (data?.error) throw new Error(data.error);
-      onDeleted();
-    } catch (err) {
-      setRowError(err.message || 'Error al borrar usuario');
-      setConfirmDelete(false);
-    } finally {
-      setDeleting(false);
     }
   }
 
@@ -258,26 +239,120 @@ function UserRow({ user: u, allUsers, onUpdated, onDeleted, currentUserId }) {
           {managerName && (
             <div className="text-[11px] text-text-muted mt-0.5">Reporta a: {managerName}</div>
           )}
+          {u.is_active === false && (
+            <div className="text-[11px] font-semibold text-red-500 mt-1">Dado de baja</div>
+          )}
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
           <button onClick={startEdit} className="p-1.5 rounded-lg hover:bg-surface-2 text-text-muted hover:text-text-primary transition-colors">
             <Edit3 size={14} />
           </button>
-          {u.id !== currentUserId && (
-            confirmDelete ? (
-              <div className="flex items-center gap-1">
-                <button onClick={handleDelete} disabled={deleting}
-                  className="px-2 py-1 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-[10px] font-bold rounded-lg flex items-center gap-1">
-                  {deleting ? <Loader2 size={11} className="animate-spin" /> : 'Confirmar'}
-                </button>
-                <button onClick={() => setConfirmDelete(false)} className="px-2 py-1 text-[10px] text-text-muted">Cancelar</button>
-              </div>
-            ) : (
-              <button onClick={() => setConfirmDelete(true)} className="p-1.5 rounded-lg hover:bg-red-50 text-text-muted hover:text-red-500 transition-colors">
-                <Trash2 size={14} />
-              </button>
-            )
+          {u.id !== currentUserId && u.is_active !== false && (
+            <button onClick={() => setShowDeactivateModal(true)} className="p-1.5 rounded-lg hover:bg-red-50 text-text-muted hover:text-red-500 transition-colors">
+              <Trash2 size={14} />
+            </button>
           )}
+        </div>
+      </div>
+      {showDeactivateModal && (
+        <DeactivateUserModal
+          user={u}
+          allUsers={allUsers}
+          onClose={() => setShowDeactivateModal(false)}
+          onDeactivated={() => { setShowDeactivateModal(false); onDeactivated(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ============ MODAL DE BAJA DE USUARIO ============
+function DeactivateUserModal({ user: u, allUsers, onClose, onDeactivated }) {
+  const [channelCount, setChannelCount] = useState(null);
+  const [loadingCount, setLoadingCount] = useState(true);
+  const [reassignTo, setReassignTo] = useState('');
+  const [deactivating, setDeactivating] = useState(false);
+  const [error, setError] = useState('');
+
+  const possibleRecipients = allUsers.filter(other => other.id !== u.id);
+
+  useEffect(() => {
+    async function loadCount() {
+      setLoadingCount(true);
+      const { count } = await supabase
+        .from('channels').select('id', { count: 'exact', head: true }).eq('assigned_to', u.id);
+      setChannelCount(count || 0);
+      setLoadingCount(false);
+    }
+    loadCount();
+  }, [u.id]);
+
+  async function handleConfirm() {
+    if (channelCount > 0 && !reassignTo) {
+      setError('Indica a quién reasignar los canales');
+      return;
+    }
+    setDeactivating(true);
+    setError('');
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke('manage-users', {
+        body: { action: 'deactivate_user', user_id: u.id, reassign_to: reassignTo || null },
+      });
+      if (fnError) throw fnError;
+      if (data?.error) throw new Error(data.error);
+      onDeactivated();
+    } catch (err) {
+      setError(err.message || 'Error al dar de baja al usuario');
+    } finally {
+      setDeactivating(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white border border-surface-3 rounded-2xl w-full max-w-sm p-5">
+        <h3 className="font-bold text-sm text-text-primary mb-1">Dar de baja a {u.full_name}</h3>
+        <p className="text-xs text-text-secondary mb-4">
+          No se borrará ningún dato. El usuario quedará bloqueado (no podrá acceder al CRM)
+          y se conservan sus canales, visitas y notas.
+        </p>
+
+        {error && (
+          <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5 mb-3 text-xs text-red-600">
+            <AlertCircle size={13} className="flex-shrink-0 mt-0.5" />{error}
+          </div>
+        )}
+
+        {loadingCount ? (
+          <div className="flex items-center gap-2 text-xs text-text-secondary py-3">
+            <Loader2 size={14} className="animate-spin" /> Comprobando canales asignados...
+          </div>
+        ) : channelCount > 0 ? (
+          <div className="mb-4">
+            <p className="text-xs text-text-secondary mb-2">
+              Tiene <strong>{channelCount} canal(es)</strong> asignado(s). Elige a quién se reasignan:
+            </p>
+            <select value={reassignTo} onChange={(e) => setReassignTo(e.target.value)}
+              className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500">
+              <option value="">Selecciona destinatario...</option>
+              {possibleRecipients.map(r => (
+                <option key={r.id} value={r.id}>{r.full_name} ({ROLE_LABELS[r.role] || r.role})</option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <p className="text-xs text-text-secondary mb-4">No tiene canales asignados actualmente.</p>
+        )}
+
+        <div className="flex gap-2">
+          <button onClick={onClose} disabled={deactivating}
+            className="flex-1 py-2.5 border border-surface-3 text-text-secondary text-sm font-semibold rounded-xl hover:bg-surface-1 transition-colors">
+            Cancelar
+          </button>
+          <button onClick={handleConfirm} disabled={deactivating || loadingCount}
+            className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors">
+            {deactivating ? <Loader2 size={14} className="animate-spin" /> : 'Confirmar baja'}
+          </button>
         </div>
       </div>
     </div>
@@ -357,7 +432,7 @@ export default function UserAdminPage() {
       )}
 
       {!loading && filtered.map(u => (
-        <UserRow key={u.id} user={u} allUsers={users} onUpdated={loadUsers} onDeleted={loadUsers} currentUserId={user?.id} />
+        <UserRow key={u.id} user={u} allUsers={users} onUpdated={loadUsers} onDeactivated={loadUsers} currentUserId={user?.id} />
       ))}
 
       {!loading && filtered.length === 0 && (
