@@ -165,10 +165,10 @@ function PipelineColumn({ stage, channels, onDrop, onDragStart, dragOver, setDra
       onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(stage.key); }}
       onDragLeave={() => setDragOver(null)}
       onDrop={(e) => { e.preventDefault(); const id = e.dataTransfer.getData('text/plain'); onDrop(id, stage.key); setDragOver(null); }}>
-      <div className="flex items-center gap-2 mb-1 px-1">
+      <div className="flex items-center gap-2 mb-1 px-1 min-w-0">
         <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: stage.color }} />
-        <span className="text-xs font-bold uppercase tracking-wider" style={{ color: stage.color }}>{stage.label}</span>
-        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#dde1e8] text-[#5a6078]">{channels.length}</span>
+        <span className="text-xs font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: stage.color }}>{stage.label}</span>
+        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#dde1e8] text-[#5a6078] flex-shrink-0">{channels.length}</span>
       </div>
       {hasVolumes && (
         <div className="flex flex-wrap gap-1 px-1 mb-2">
