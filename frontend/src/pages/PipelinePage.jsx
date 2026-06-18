@@ -161,7 +161,7 @@ function PipelineColumn({ stage, channels, onDrop, onDragStart, dragOver, setDra
   const hasVolumes = Object.keys(volTotals).length > 0;
 
   return (
-    <div className="flex flex-col min-w-[130px] flex-1"
+    <div className="flex flex-col min-w-[110px] flex-1"
       onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(stage.key); }}
       onDragLeave={() => setDragOver(null)}
       onDrop={(e) => { e.preventDefault(); const id = e.dataTransfer.getData('text/plain'); onDrop(id, stage.key); setDragOver(null); }}>
@@ -680,10 +680,22 @@ export default function PipelinePage() {
       <div className="flex gap-1 mb-3 h-2 rounded-full overflow-hidden bg-[#dde1e8]">
         {STATUSES.map(stage => {
           const count = channelsByStage[stage.key]?.length || 0;
-          const pct = filteredChannels.length > 0 ? (count / filteredChannels.length) * 100 : 0;
-          return pct > 0 ? (
-            <div key={stage.key} style={{ width: `${pct}%`, backgroundColor: stage.color }} className="transition-all duration-300" title={`${stage.label}: ${count}`} />
-          ) : null;
+          // Antes, un estado con 0 canales no renderizaba ningún segmento, lo
+          // que desplazaba los colores siguientes y desalineaba la barra
+          // respecto a los títulos de abajo. Ahora SIEMPRE se muestran los 7
+          // segmentos: los vacíos con un ancho mínimo fino (1.5%), y el resto
+          // repartiendo proporcionalmente el espacio restante según su conteo.
+          const MIN_PCT = 1.5;
+          const emptyCount = STATUSES.filter(s => (channelsByStage[s.key]?.length || 0) === 0).length;
+          const reservedForEmpty = emptyCount * MIN_PCT;
+          const availablePct = Math.max(0, 100 - reservedForEmpty);
+          const pct = count > 0
+            ? (filteredChannels.length > 0 ? (count / filteredChannels.length) * availablePct : 0)
+            : MIN_PCT;
+          return (
+            <div key={stage.key} style={{ width: `${pct}%`, backgroundColor: stage.color }}
+              className="transition-all duration-300" title={`${stage.label}: ${count}`} />
+          );
         })}
       </div>
 
