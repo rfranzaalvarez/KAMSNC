@@ -120,9 +120,9 @@ export function ChannelReassign({ channel, onReassigned }) {
  * Bulk reassign modal - select multiple channels from a KAM and reassign to another.
  * Accessible from manager views.
  */
-export function BulkReassignModal({ onClose, onDone }) {
+export function BulkReassignModal({ onClose, onDone, initialFromKam }) {
   const [kams, setKams] = useState([]);
-  const [fromKam, setFromKam] = useState('');
+  const [fromKam, setFromKam] = useState(initialFromKam || '');
   const [toKam, setToKam] = useState('');
   const [channels, setChannels] = useState([]);
   const [selected, setSelected] = useState(new Set());
@@ -135,9 +135,13 @@ export function BulkReassignModal({ onClose, onDone }) {
   useEffect(() => { if (fromKam) loadChannels(); }, [fromKam]);
 
   async function loadKams() {
+    // Antes solo listaba role='kam'. Ahora incluye también managers/directores
+    // como posible ORIGEN, ya que un manager puede acumular canales reasignados
+    // (por ejemplo, tras dar de baja a un KAM) y necesita poder repartirlos.
     const { data } = await supabase.from('profiles')
-      .select('id, full_name, zone')
-      .eq('role', 'kam').eq('is_active', true).order('full_name');
+      .select('id, full_name, zone, role')
+      .in('role', ['kam', 'coordinator', 'manager', 'director'])
+      .eq('is_active', true).order('full_name');
     setKams(data || []);
   }
 
@@ -217,11 +221,11 @@ export function BulkReassignModal({ onClose, onDone }) {
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {/* From KAM */}
           <div>
-            <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">KAM origen</label>
+            <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Origen</label>
             <select value={fromKam} onChange={(e) => setFromKam(e.target.value)}
               className="w-full px-3 py-2.5 bg-surface-0 border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500">
-              <option value="">Seleccionar KAM...</option>
-              {kams.map(k => <option key={k.id} value={k.id}>{k.full_name} · Zona {k.zone || '-'}</option>)}
+              <option value="">Seleccionar origen...</option>
+              {kams.map(k => <option key={k.id} value={k.id}>{k.full_name} ({k.role}) · Zona {k.zone || '-'}</option>)}
             </select>
           </div>
 
