@@ -21,12 +21,18 @@ import { supabase } from '../lib/supabase';
  * - Usar visibilitychange para recuperar la sesión al volver al foco
  * - Mantener user/profile en ref además de state para acceso síncrono
  * - Timeout de seguridad en getSession para no bloquearse nunca
+ *
+ * USUARIOS DADOS DE BAJA (is_active = false):
+ * - Si el perfil cargado tiene is_active === false, se fuerza un signOut
+ *   inmediato y se expone deactivated=true, para que LoginPage muestre un
+ *   mensaje claro ("Usuario dado de baja") en vez de dejarlo pasar.
  */
 export function useAuth() {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [deactivated, setDeactivated] = useState(false);
 
   // Refs para acceso síncrono sin depender del closure del listener
   const userRef = useRef(null);
@@ -58,7 +64,13 @@ export function useAuth() {
     return tokenData.expires_at * 1000 < Date.now();
   }
 
-  /** Carga el perfil desde Supabase, con fallback a cache */
+  /**
+   * Carga el perfil desde Supabase, con fallback a cache.
+   * Si el perfil está desactivado (is_active === false), fuerza signOut
+   * inmediato y marca deactivated=true en vez de dejar pasar al usuario.
+   * Devuelve true si el perfil cargado está activo (o no se pudo determinar),
+   * false si se detectó que está desactivado.
+   */
   const loadProfile = useCallback(async (userId) => {
     try {
       const { data, error: err } = await supabase
@@ -67,13 +79,27 @@ export function useAuth() {
         .eq('id', userId)
         .single();
       if (err) throw err;
+
+      if (data?.is_active === false) {
+        // Usuario dado de baja: no dejamos pasar, cerramos sesión y avisamos
+        try { localStorage.removeItem('kamapp_profile_cache'); } catch {}
+        userRef.current = null;
+        setUser(null);
+        setProfile(null);
+        setDeactivated(true);
+        try { await supabase.auth.signOut(); } catch {}
+        return false;
+      }
+
       setProfile(data);
       try { localStorage.setItem('kamapp_profile_cache', JSON.stringify(data)); } catch {}
+      return true;
     } catch {
       try {
         const cached = localStorage.getItem('kamapp_profile_cache');
         if (cached) setProfile(JSON.parse(cached));
       } catch {}
+      return true;
     }
   }, []);
 
@@ -121,7 +147,10 @@ export function useAuth() {
 
         userRef.current = currentUser;
         setUser(currentUser);
-        if (currentUser) await loadProfile(currentUser.id);
+        if (currentUser) {
+          const isActive = await loadProfile(currentUser.id);
+          if (!isActive) { userRef.current = null; setUser(null); }
+        }
       } catch (err) {
         console.error('Auth init error:', err);
       } finally {
@@ -148,7 +177,8 @@ export function useAuth() {
             if (recovered) {
               userRef.current = recovered;
               setUser(recovered);
-              await loadProfile(recovered.id);
+              const isActive = await loadProfile(recovered.id);
+              if (!isActive) { userRef.current = null; setUser(null); }
               setLoading(false);
               return;
             }
@@ -172,7 +202,8 @@ export function useAuth() {
           if (userRef.current?.id !== currentUser.id) {
             userRef.current = currentUser;
             setUser(currentUser);
-            await loadProfile(currentUser.id);
+            const isActive = await loadProfile(currentUser.id);
+            if (!isActive) { userRef.current = null; setUser(null); }
           } else {
             // Mismo usuario, solo actualizar ref sin re-render
             userRef.current = currentUser;
@@ -183,7 +214,8 @@ export function useAuth() {
           if (recovered) {
             userRef.current = recovered;
             setUser(recovered);
-            await loadProfile(recovered.id);
+            const isActive = await loadProfile(recovered.id);
+            if (!isActive) { userRef.current = null; setUser(null); }
           }
           // Si no se pudo recuperar, mantener el usuario actual (no borrar)
         }
@@ -210,7 +242,8 @@ export function useAuth() {
         if (recovered) {
           userRef.current = recovered;
           setUser(recovered);
-          await loadProfile(recovered.id);
+          const isActive = await loadProfile(recovered.id);
+          if (!isActive) { userRef.current = null; setUser(null); }
           setLoading(false);
         }
       } catch {}
@@ -224,6 +257,7 @@ export function useAuth() {
 
   const signIn = useCallback(async (email, password) => {
     setError(null);
+    setDeactivated(false);
     setLoading(true);
     try {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
@@ -235,6 +269,18 @@ export function useAuth() {
         };
         throw new Error(messages[signInError.message] || signInError.message);
       }
+
+      // La contraseña es correcta. Comprobamos is_active ANTES de dejar pasar.
+      if (data?.user) {
+        const isActive = await loadProfile(data.user.id);
+        if (!isActive) {
+          // loadProfile ya hizo signOut y marcó deactivated=true
+          throw new Error('Usuario dado de baja. Contacta con tu administrador.');
+        }
+        userRef.current = data.user;
+        setUser(data.user);
+      }
+
       return data;
     } catch (err) {
       setError(err.message);
@@ -242,7 +288,7 @@ export function useAuth() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadProfile]);
 
   const signOut = useCallback(async () => {
     // Marcar que es un logout real antes de llamar a Supabase
@@ -269,6 +315,7 @@ export function useAuth() {
     profile: effectiveProfile,
     loading,
     error,
+    deactivated,
     signIn,
     signOut,
     isAuthenticated: !!user || !!effectiveProfile,
