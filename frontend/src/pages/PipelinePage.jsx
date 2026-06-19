@@ -676,24 +676,15 @@ export default function PipelinePage() {
         ) : null;
       })()}
 
-      {/* Progress bar */}
-      <div className="flex gap-1 mb-3 h-2 rounded-full overflow-hidden bg-[#dde1e8]">
+      {/* Barra de color por estado: cada segmento ocupa el mismo ancho fijo
+          (100/7 %), igual que cada columna de título de abajo, para que
+          coincidan exactamente en horizontal. NO es proporcional al número
+          de canales — es solo un indicador visual de color por estado. */}
+      <div className="flex mb-3 h-2 rounded-full overflow-hidden bg-[#dde1e8]">
         {STATUSES.map(stage => {
           const count = channelsByStage[stage.key]?.length || 0;
-          // Antes, un estado con 0 canales no renderizaba ningún segmento, lo
-          // que desplazaba los colores siguientes y desalineaba la barra
-          // respecto a los títulos de abajo. Ahora SIEMPRE se muestran los 7
-          // segmentos: los vacíos con un ancho mínimo fino (1.5%), y el resto
-          // repartiendo proporcionalmente el espacio restante según su conteo.
-          const MIN_PCT = 1.5;
-          const emptyCount = STATUSES.filter(s => (channelsByStage[s.key]?.length || 0) === 0).length;
-          const reservedForEmpty = emptyCount * MIN_PCT;
-          const availablePct = Math.max(0, 100 - reservedForEmpty);
-          const pct = count > 0
-            ? (filteredChannels.length > 0 ? (count / filteredChannels.length) * availablePct : 0)
-            : MIN_PCT;
           return (
-            <div key={stage.key} style={{ width: `${pct}%`, backgroundColor: stage.color }}
+            <div key={stage.key} style={{ width: `${100 / STATUSES.length}%`, backgroundColor: stage.color }}
               className="transition-all duration-300" title={`${stage.label}: ${count}`} />
           );
         })}
