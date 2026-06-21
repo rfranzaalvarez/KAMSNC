@@ -1,6 +1,6 @@
 # CRM para KAMs — Documentación de arquitectura y traspaso
 
-> Última actualización: 19 de junio de 2026.
+> Última actualización: 21 de junio de 2026.
 > Este documento describe el estado **real** del sistema en producción, verificado directamente contra el código de los repositorios y la base de datos de Supabase — no es una memoria de diseño original, sino un inventario actual.
 
 ---
@@ -52,7 +52,7 @@ El patrón habitual en este proyecto es: el componente React llama a `supabase.f
 
 ## 3. Esquema real de la base de datos (18 tablas)
 
-**Importante:** existe un archivo `database/schema.sql` en el repositorio `KAMSNC` que está **desactualizado** — solo define 5 tablas (`profiles`, `channels`, `visits`, `planned_visits`, `alerts`). La base de datos real en Supabase tiene **18 tablas**. No uses ese archivo como referencia; este documento refleja el estado verificado en producción a fecha de hoy. Si quieres mantener ese archivo al día en el futuro, lo más fiable es regenerarlo directamente desde Supabase (ver sección 8.3) en vez de editarlo a mano.
+**Nota:** el archivo `database/schema.sql` en el repositorio `KAMSNC` se regeneró el 19 de junio de 2026 a partir de la base de datos real en Supabase, y ahora refleja las 18 tablas completas con todas sus columnas, tipos y valores por defecto. Si en el futuro se añaden o modifican tablas directamente en Supabase, este archivo quedará desactualizado de nuevo — lo más fiable es regenerarlo periódicamente desde Supabase (ver sección 8.3).
 
 | Tabla | Para qué sirve |
 |---|---|
@@ -90,9 +90,21 @@ El patrón habitual en este proyecto es: el componente React llama a `supabase.f
 
 ## 4. Autenticación y seguridad
 
-### 4.1 Cómo funciona el login
+### 4.1 Cómo funciona el login (con 2FA obligatorio)
 
-Email + contraseña vía Supabase Auth (`supabase.auth.signInWithPassword`). No hay 2FA implementado actualmente (se diseñó un enfoque con Email OTP nativo de Supabase, pero quedó pausado — ver sección 9).
+El login tiene dos pasos obligatorios para todos los usuarios, sin excepción:
+
+1. **Email + contraseña** — vía Supabase Auth (`supabase.auth.signInWithPassword`). Si la contraseña es correcta, la sesión se crea con nivel AAL1 (Authenticator Assurance Level 1 = solo contraseña).
+
+2. **Código TOTP de app autenticadora** — el usuario introduce el código de 6 dígitos que genera su app (Google Authenticator, Microsoft Authenticator, o cualquier app compatible con TOTP). Si es correcto, la sesión sube a AAL2 y se concede acceso al CRM.
+
+**La primera vez** que un usuario inicia sesión, en vez del paso 2, ve una pantalla de configuración con una guía visual de 3 pasos (descargar app autenticadora con enlaces directos a las tiendas, escanear el QR que genera Supabase, e introducir el código para verificar). Una vez completado, el factor TOTP queda registrado permanentemente para ese usuario.
+
+**Implementación técnica:**
+- `useAuth.js` expone `mfaRequired` (boolean), `enrollMfa()` y `verifyMfa()`. La propiedad `isAuthenticated` requiere que `mfaRequired` sea `false` (es decir, que el usuario haya completado ambos pasos). Esto impide que un usuario con solo contraseña (AAL1) acceda a ninguna ruta protegida.
+- `LoginPage.jsx` gestiona un estado interno `mfaStep` (`null` → `'enroll'` → `'verify'`) que determina qué pantalla mostrar: el formulario de login, la guía de enrollment con QR, o el campo de código TOTP.
+- La API de MFA de Supabase se usa de forma nativa: `mfa.enroll({ factorType: 'totp' })`, `mfa.challengeAndVerify({ factorId, code })`, `mfa.getAuthenticatorAssuranceLevel()`, `mfa.listFactors()`.
+- No hay dependencia de ningún servicio externo de email, SMS ni proveedor de terceros. Todo funciona localmente entre la app autenticadora del móvil del usuario y Supabase Auth.
 
 ### 4.2 RLS (Row Level Security) — la seguridad real del sistema
 
@@ -169,31 +181,37 @@ Dos mecanismos distintos para la misma operación de fondo (`channels.assigned_t
 
 ### 6.3 Pipeline / Kanban
 
-`PipelinePage.jsx` agrupa los canales en 7 columnas según `channels.status` (no según `pipeline_stage` directamente — hay una traducción intermedia, ver sección 7.1). Al arrastrar un canal a otra columna, se recalcula también su `pipeline_stage` vía el mapeo inverso `STATUS_TO_DEFAULT_STAGE`.
+`PipelinePage.jsx` agrupa los canales en 7 columnas según `channels.status` (no según `pipeline_stage` directamente — hay una traducción intermedia vía `stageToStatus()` y `STATUS_TO_DEFAULT_STAGE` en el propio archivo). Al arrastrar un canal a otra columna, se recalcula también su `pipeline_stage` vía el mapeo inverso. Los colores de cada estado se importan de `STATUS_LIST` en `crmConstants.js` (fuente de verdad única para todos los colores del CRM).
 
 ### 6.4 Modo offline
 
 `frontend/src/lib/offline.js` implementa una cola en IndexedDB: si el navegador está sin conexión, las operaciones de escritura (`insert`/`update`/`upsert`) se encolan en vez de fallar, y se sincronizan automáticamente en cuanto vuelve la conexión (evento `online` del navegador). Reintenta hasta 5 veces antes de abandonar una operación.
 
+### 6.5 Notificaciones (campanita)
+
+El componente `NotificationsBell` (dentro de `AppLayout.jsx`) muestra un icono de campana en la cabecera del CRM, con un contador rojo de alertas no leídas. Al pulsarla, despliega un panel con las 20 alertas más recientes (no descartadas), distinguiendo visualmente leídas de no leídas (punto de color + fondo resaltado). Al hacer clic en una alerta, se marca como leída.
+
+Las alertas de tipo `system` generadas por una baja de usuario (título "Canales reasignados") incluyen además un botón "Repartir estos canales →" que abre directamente el `BulkReassignModal`, preseleccionando al propio usuario como origen, para que pueda redistribuir los canales heredados sin tener que navegar a la pantalla de Canales.
+
 ---
 
 ## 7. Deuda técnica conocida (cosas a vigilar)
 
-### 7.1 Dos sistemas de color para los mismos estados, ligeramente desincronizados
+### 7.1 Envío de emails roto
 
-`crmConstants.js` define `STATUS_CONFIG` con clases de Tailwind (`bg-amber-500/20`, etc.) para los 7 estados del pipeline. Por separado, `PipelinePage.jsx` define su propio array `STATUSES` con colores hexadecimales inline (`color: '#eab308'`, etc.), que se modificó en una sesión reciente para diferenciar mejor visualmente los colores que se confundían entre sí. **Estos dos sistemas ya no coinciden exactamente** — si en el futuro cambias un color en uno, revisa también el otro, o mejor aún, unifica ambos en una sola fuente.
+Railway bloquea SMTP saliente en el plan Hobby (sección 5). Esto afecta a las invitaciones de calendario y al informe semanal. Decisión pendiente: subir a Railway Pro, o sustituir SMTP directo por un servicio HTTP de email (Resend, SendGrid, Brevo). Esta decisión es independiente del 2FA (que usa TOTP y no necesita email).
 
-### 7.2 `schema.sql` desactualizado
+### 7.2 Subordinados de usuario dado de baja
 
-Como ya se menciona en la sección 3, el archivo del repositorio no refleja la base de datos real. Si se quiere mantener al día, lo más práctico es regenerarlo periódicamente desde Supabase (consulta en sección 8.3) en vez de mantenerlo a mano.
+Si el usuario dado de baja tenía gente reportándole (`reports_to` apuntando a él), esa jerarquía no se toca automáticamente durante la baja — los subordinados se quedan con un manager inactivo hasta que alguien los reasigne manualmente desde el panel de administración.
 
-### 7.3 Sin 2FA
+### Deuda técnica resuelta recientemente
 
-Se diseñó un enfoque (Email OTP nativo de Supabase como segundo factor tras la contraseña) pero la decisión quedó pausada para pensarla con calma. Ver sección 9 para retomarlo.
+Los siguientes puntos se identificaron como deuda técnica y se resolvieron en la sesión del 19-21 de junio de 2026:
 
-### 7.4 Envío de emails roto
-
-SMTP bloqueado en Railway Hobby (sección 5). Decisión pendiente: subir a Pro o cambiar a un servicio HTTP de email.
+- **Colores duplicados entre archivos** — `STATUS_CONFIG`, `PIPELINE_STAGES` (en `crmConstants.js`), y copias locales en `PipelinePage.jsx` y `DashboardPage.jsx` usaban colores distintos e incoherentes entre sí. Se unificó todo en `crmConstants.js` como fuente de verdad única, y se eliminaron las copias locales. Si en el futuro se cambia un color, basta con cambiarlo en `crmConstants.js` y se refleja automáticamente en todo el CRM.
+- **`schema.sql` desactualizado** — Solo contenía 5 tablas. Se regeneró con las 18 tablas reales de producción. Si en el futuro se añaden tablas directamente en Supabase, regenerar con la consulta de la sección 8.3.
+- **Sin 2FA** — Implementado con TOTP (app autenticadora), obligatorio para todos los usuarios (sección 4.1).
 
 ---
 
@@ -218,7 +236,7 @@ Similar, pero sobre el repositorio `KAMAPP`. Railway también tiene despliegue a
 
 Todo se hace desde **Supabase → SQL Editor → New query**, pegando y ejecutando el SQL proporcionado. No hay sistema de migraciones formal (como Flyway o Prisma Migrate) — cada cambio de esquema se aplica como un script SQL suelto, ejecutado manualmente una vez. **Esto significa que no hay un historial versionado de cambios de esquema en ningún archivo** — la única fuente de verdad es el estado actual de la base de datos en Supabase.
 
-Para regenerar un inventario actualizado del esquema completo (recomendado periódicamente, dado que `schema.sql` está desactualizado):
+Para regenerar un inventario actualizado del esquema completo (el archivo `database/schema.sql` del repo se actualizó el 19/06/2026, pero puede quedar desactualizado si se hacen cambios de esquema directamente en Supabase):
 
 ```sql
 SELECT table_name, column_name, data_type, is_nullable, column_default
@@ -265,11 +283,6 @@ Supabase → **Edge Functions** → seleccionar la función (ej. `manage-users`)
 
 ## 9. Decisiones pendientes (aparcadas, no urgentes)
 
-Estas dos decisiones de producto se discutieron y se diseñó una propuesta técnica, pero se pausaron para decidir con calma:
+1. **SMTP roto en Railway** — elegir entre subir a Railway Pro o sustituir el envío directo por un servicio HTTP (Resend, SendGrid, Brevo). Esto afecta a las invitaciones de calendario por email y al envío del informe semanal automatizado. No afecta al 2FA (que usa TOTP sin email) ni a las alertas del CRM (que son internas y no dependen de email).
 
-1. **SMTP roto en Railway** — elegir entre subir a Railway Pro o sustituir el envío directo por un servicio HTTP (Resend/SendGrid)
-2. **2FA por email** — diseño propuesto: usar el Email OTP nativo de Supabase (`signInWithOtp`/`verifyOtp`) como segundo paso tras validar la contraseña normal, en vez de construir un sistema de códigos propio desde cero. Pendiente de decidir si seguir adelante.
-
-Además, sin decisión tomada todavía:
-- Qué hacer con los subordinados de un usuario dado de baja (sección 6.1)
-- Si vale la pena invertir tiempo en unificar los dos sistemas de color del pipeline (sección 7.1)
+2. **Subordinados de usuario dado de baja** — cuando se da de baja a un usuario que tiene gente reportándole (`reports_to` → su id), los subordinados quedan con un manager inactivo. No hay ninguna lógica automática para reasignar esa jerarquía todavía — se gestionaría manualmente desde el panel de administración cambiando el `reports_to` de cada subordinado afectado.
