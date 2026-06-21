@@ -2,18 +2,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../components/AuthProvider';
 import { formatVolume, getVolumeConfig, VOLUME_UNITS } from '../components/VolumeEditor';
-import { PIPELINE_CONFIG } from '../lib/crmConstants';
+import { PIPELINE_CONFIG, PIPELINE_STAGES } from '../lib/crmConstants';
 import { Loader2, Users, Eye, ChevronRight, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
-
-const PIPELINE_STAGES = [
-  { key: 'lead',           label: 'Lead',             color: '#94a3b8' },
-  { key: 'first_contact',  label: 'Contacto',         color: '#60a5fa' },
-  { key: 'proposal',       label: 'Propuesta',        color: '#a78bfa' },
-  { key: 'negotiation',    label: 'Negociación',      color: '#f59e0b' },
-  { key: 'onboarding',     label: 'En proceso alta',  color: '#f97316' },
-  { key: 'active',         label: 'Activo',           color: '#22c55e' },
-  { key: 'closed_no_deal', label: 'Sin acuerdo',      color: '#ef4444' },
-];
 
 // Stages que cuentan como "en proceso" (ni lead ni terminales)
 const IN_PROCESS_STAGES = ['first_contact', 'proposal', 'negotiation', 'onboarding'];

@@ -5,16 +5,29 @@
  * Importar desde aquí en vez de definir en cada componente.
  */
 
-// ============ STATUS CONFIG (usado en ChannelsPage, etc.) ============
+// ============ STATUS CONFIG (única fuente de verdad para colores de estados) ============
+// Incluye TANTO clases Tailwind (para badges en ChannelsPage, etc.) COMO colores hex
+// (para estilos inline en PipelinePage, barras de progreso, etc.).
+// Si cambias un color, cámbialo aquí y se reflejará en todo el CRM.
 export const STATUS_CONFIG = {
-  pendiente_contacto: { label: 'Pendiente contacto', bg: 'bg-gray-500/20',   text: 'text-gray-400',   border: 'border-gray-500/30'   },
-  en_desarrollo:      { label: 'En desarrollo',       bg: 'bg-amber-500/20',  text: 'text-amber-400',  border: 'border-amber-500/30'  },
-  en_evaluacion:      { label: 'En evaluación',        bg: 'bg-purple-500/20', text: 'text-purple-400', border: 'border-purple-500/30' },
-  en_proceso_alta:    { label: 'En proceso de alta',   bg: 'bg-orange-500/20', text: 'text-orange-400', border: 'border-orange-500/30' },
-  activo:             { label: 'Activo',               bg: 'bg-green-500/20',  text: 'text-green-400',  border: 'border-green-500/30'  },
-  rechazado:          { label: 'Rechazado',            bg: 'bg-red-500/20',    text: 'text-red-400',    border: 'border-red-500/30'    },
-  cierre_sin_acuerdo: { label: 'Cierre sin acuerdo',  bg: 'bg-gray-500/20',   text: 'text-gray-500',   border: 'border-gray-500/30'   },
+  pendiente_contacto: { label: 'Pendiente contacto', color: '#94a3b8', bg: 'bg-slate-500/20',  text: 'text-slate-400',  border: 'border-slate-500/30',  bg_rgba: 'rgba(148,163,184,0.1)', border_rgba: 'rgba(148,163,184,0.25)' },
+  en_desarrollo:      { label: 'En desarrollo',      color: '#eab308', bg: 'bg-yellow-500/20', text: 'text-yellow-500', border: 'border-yellow-500/30', bg_rgba: 'rgba(234,179,8,0.1)',   border_rgba: 'rgba(234,179,8,0.25)'   },
+  en_evaluacion:      { label: 'En evaluación',      color: '#8b5cf6', bg: 'bg-violet-500/20', text: 'text-violet-500', border: 'border-violet-500/30', bg_rgba: 'rgba(139,92,246,0.1)',  border_rgba: 'rgba(139,92,246,0.25)'  },
+  en_proceso_alta:    { label: 'En proceso de alta', color: '#06b6d4', bg: 'bg-cyan-500/20',   text: 'text-cyan-500',   border: 'border-cyan-500/30',   bg_rgba: 'rgba(6,182,212,0.1)',   border_rgba: 'rgba(6,182,212,0.25)'   },
+  activo:             { label: 'Activo',             color: '#22c55e', bg: 'bg-green-500/20',  text: 'text-green-500',  border: 'border-green-500/30',  bg_rgba: 'rgba(34,197,94,0.1)',   border_rgba: 'rgba(34,197,94,0.25)'   },
+  rechazado:          { label: 'Rechazado',          color: '#dc2626', bg: 'bg-red-600/20',    text: 'text-red-600',    border: 'border-red-600/30',    bg_rgba: 'rgba(220,38,38,0.1)',   border_rgba: 'rgba(220,38,38,0.25)'   },
+  cierre_sin_acuerdo: { label: 'Cierre sin acuerdo', color: '#db2777', bg: 'bg-pink-600/20',   text: 'text-pink-600',   border: 'border-pink-600/30',   bg_rgba: 'rgba(219,39,119,0.1)',  border_rgba: 'rgba(219,39,119,0.25)'  },
 };
+
+// Array de estados en orden, derivado de STATUS_CONFIG.
+// Usado en PipelinePage (columnas del Kanban y barra de progreso).
+export const STATUS_LIST = Object.entries(STATUS_CONFIG).map(([key, cfg]) => ({
+  key,
+  label: cfg.label,
+  color: cfg.color,
+  bg: cfg.bg_rgba,
+  border: cfg.border_rgba,
+}));
 
 // ============ PIPELINE CONFIG (stage → label) ============
 export const PIPELINE_CONFIG = {
@@ -27,15 +40,17 @@ export const PIPELINE_CONFIG = {
   closed_no_deal: 'Sin acuerdo',
 };
 
-// ============ PIPELINE STAGES (array completo, para Kanban) ============
+// ============ PIPELINE STAGES (array completo, para DashboardPage y formularios) ============
+// Colores diferenciados para cada fase del pipeline (distinto de los estados/status,
+// porque un pipeline stage puede mapearse a varios statuses).
 export const PIPELINE_STAGES = [
   { key: 'lead',           label: 'Lead',             color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.25)' },
   { key: 'first_contact',  label: 'Primer contacto',  color: '#60a5fa', bg: 'rgba(96,165,250,0.1)',  border: 'rgba(96,165,250,0.25)'  },
-  { key: 'proposal',       label: 'Propuesta',        color: '#a78bfa', bg: 'rgba(167,139,250,0.1)', border: 'rgba(167,139,250,0.25)' },
-  { key: 'negotiation',    label: 'Negociación',      color: '#f59e0b', bg: 'rgba(245,158,11,0.1)',  border: 'rgba(245,158,11,0.25)'  },
-  { key: 'onboarding',     label: 'En proceso alta',  color: '#f97316', bg: 'rgba(249,115,22,0.1)',  border: 'rgba(249,115,22,0.25)'  },
+  { key: 'proposal',       label: 'Propuesta',        color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)',  border: 'rgba(139,92,246,0.25)'  },
+  { key: 'negotiation',    label: 'Negociación',      color: '#eab308', bg: 'rgba(234,179,8,0.1)',   border: 'rgba(234,179,8,0.25)'   },
+  { key: 'onboarding',     label: 'En proceso alta',  color: '#06b6d4', bg: 'rgba(6,182,212,0.1)',   border: 'rgba(6,182,212,0.25)'   },
   { key: 'active',         label: 'Activo',           color: '#22c55e', bg: 'rgba(34,197,94,0.1)',   border: 'rgba(34,197,94,0.25)'   },
-  { key: 'closed_no_deal', label: 'Sin acuerdo',      color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   border: 'rgba(239,68,68,0.25)'   },
+  { key: 'closed_no_deal', label: 'Sin acuerdo',      color: '#db2777', bg: 'rgba(219,39,119,0.1)',  border: 'rgba(219,39,119,0.25)'  },
 ];
 
 // Stages disponibles al CREAR un canal (sin "closed_no_deal" — no tiene sentido nacer ya cerrado)

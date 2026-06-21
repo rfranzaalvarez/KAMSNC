@@ -4,33 +4,17 @@ import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../components/AuthProvider';
 import { useChannelTypes } from '../hooks/useChannelTypes';
 import { formatVolume, getVolumeConfig, VOLUME_UNITS } from '../components/VolumeEditor';
-import { PIPELINE_CONFIG, STATUS_CONFIG, stageToStatus } from '../lib/crmConstants';
+import { PIPELINE_CONFIG, STATUS_CONFIG, STATUS_LIST, stageToStatus } from '../lib/crmConstants';
 import {
   Loader2, ChevronRight, ChevronDown, X, Check, Filter,
   Calendar, Users, TrendingUp, Clock, Building2
 } from 'lucide-react';
 
 // Las columnas del Kanban representan ESTADOS (igual que en la pantalla de
-// Canales), no fases de pipeline. Mismo "shape" que el STATUSES anterior para
-// no tener que tocar los componentes que ya consumen stage.color/bg/border.
-const STATUSES = [
-  { key: 'pendiente_contacto', label: 'Pendiente contacto',  color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', border: 'rgba(148,163,184,0.25)' },
-  { key: 'en_desarrollo',      label: 'En desarrollo',       color: '#eab308', bg: 'rgba(234,179,8,0.1)',   border: 'rgba(234,179,8,0.25)'   },
-  { key: 'en_evaluacion',      label: 'En evaluación',       color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)', border: 'rgba(139,92,246,0.25)' },
-  { key: 'en_proceso_alta',    label: 'En proceso de alta',  color: '#06b6d4', bg: 'rgba(6,182,212,0.1)',  border: 'rgba(6,182,212,0.25)'   },
-  { key: 'activo',             label: 'Activo',              color: '#22c55e', bg: 'rgba(34,197,94,0.1)',  border: 'rgba(34,197,94,0.25)'   },
-  { key: 'rechazado',          label: 'Rechazado',           color: '#dc2626', bg: 'rgba(220,38,38,0.1)',  border: 'rgba(220,38,38,0.25)'   },
-  { key: 'cierre_sin_acuerdo', label: 'Cierre sin acuerdo',  color: '#db2777', bg: 'rgba(219,39,119,0.1)', border: 'rgba(219,39,119,0.25)'  },
-];
-
-// Nota: el Kanban ahora se organiza por status (no por pipeline_stage), así
-// que el flujo principal es STATUS_TO_DEFAULT_STAGE (abajo), no stageToStatus.
-// stageToStatus se mantiene importado de crmConstants por si se necesita en
-// otra parte de este archivo en el futuro.
-
-// Mapeo inverso: al mover una tarjeta a una columna de ESTADO, qué pipeline_stage
-// le asignamos por defecto (decisión interna, no visible al usuario — las columnas
-// del Kanban son ahora por status, igual que en la pantalla de Canales).
+// El Kanban se organiza por status (no por pipeline_stage). Los colores y labels
+// vienen de STATUS_LIST (importado de crmConstants — fuente de verdad única).
+// STATUS_TO_DEFAULT_STAGE es el mapeo inverso: al mover una tarjeta a una columna
+// de ESTADO, qué pipeline_stage le asignamos por defecto.
 const STATUS_TO_DEFAULT_STAGE = {
   pendiente_contacto: 'lead',
   en_desarrollo:       'first_contact',
@@ -214,7 +198,7 @@ function PipelineMobile({ channelsByStage, onMove, loading, onChannelClick, type
 
   return (
     <div className="space-y-2">
-      {STATUSES.map(stage => {
+      {STATUS_LIST.map(stage => {
         const channels = channelsByStage[stage.key] || [];
         const isExpanded = expandedStage === stage.key;
         return (
@@ -247,7 +231,7 @@ function PipelineMobile({ channelsByStage, onMove, loading, onChannelClick, type
                     </div>
                     {movingChannel === ch.id ? (
                       <div className="flex gap-1 flex-wrap justify-end max-w-[180px]">
-                        {STATUSES.filter(s => s.key !== stage.key).map(s => (
+                        {STATUS_LIST.filter(s => s.key !== stage.key).map(s => (
                           <button key={s.key} onClick={() => { onMove(ch.id, s.key); setMovingChannel(null); }}
                             className="text-[9px] font-semibold px-2 py-1 rounded-md" style={{ backgroundColor: s.bg, color: s.color, border: `1px solid ${s.border}` }}>{s.label}</button>
                         ))}
@@ -430,8 +414,8 @@ export default function PipelinePage() {
     if (!channel || channel.status === newStatusKey) return;
 
     const oldStatusKey = channel.status;
-    const oldStatusObj = STATUSES.find(s => s.key === oldStatusKey);
-    const newStatusObj = STATUSES.find(s => s.key === newStatusKey);
+    const oldStatusObj = STATUS_LIST.find(s => s.key === oldStatusKey);
+    const newStatusObj = STATUS_LIST.find(s => s.key === newStatusKey);
     const now = new Date().toISOString();
     // pipeline_stage se deriva del estado destino (decisión interna, no se
     // pide al usuario — ver STATUS_TO_DEFAULT_STAGE más arriba en el archivo)
@@ -485,7 +469,7 @@ export default function PipelinePage() {
 
   // Group by status (igual que en la pantalla de Canales)
   const channelsByStage = {};
-  STATUSES.forEach(s => { channelsByStage[s.key] = []; });
+  STATUS_LIST.forEach(s => { channelsByStage[s.key] = []; });
   filteredChannels.forEach(ch => {
     const key = ch.status;
     if (channelsByStage[key]) channelsByStage[key].push(ch);
@@ -681,10 +665,10 @@ export default function PipelinePage() {
           coincidan exactamente en horizontal. NO es proporcional al número
           de canales — es solo un indicador visual de color por estado. */}
       <div className="flex mb-3 h-2 rounded-full overflow-hidden bg-[#dde1e8]">
-        {STATUSES.map(stage => {
+        {STATUS_LIST.map(stage => {
           const count = channelsByStage[stage.key]?.length || 0;
           return (
-            <div key={stage.key} style={{ width: `${100 / STATUSES.length}%`, backgroundColor: stage.color }}
+            <div key={stage.key} style={{ width: `${100 / STATUS_LIST.length}%`, backgroundColor: stage.color }}
               className="transition-all duration-300" title={`${stage.label}: ${count}`} />
           );
         })}
@@ -699,7 +683,7 @@ export default function PipelinePage() {
           classificationsByChannel={classificationsByChannel} />
       ) : (
         <div ref={scrollRef} className="flex gap-2 overflow-x-auto scrollbar-hide pb-4" style={{ minHeight: 300 }}>
-          {STATUSES.map(stage => (
+          {STATUS_LIST.map(stage => (
             <PipelineColumn key={stage.key} stage={stage} channels={channelsByStage[stage.key] || []}
               onDrop={moveChannel} onDragStart={setDraggingId} dragOver={dragOver} setDragOver={setDragOver}
               onChannelClick={handleChannelClick} typeMap={typeMap} showKam={showKam} dateType={dateType}
