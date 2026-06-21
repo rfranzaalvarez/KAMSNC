@@ -2,35 +2,105 @@ import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuthContext } from '../components/AuthProvider';
 import { supabase } from '../lib/supabase';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, ShieldCheck, Smartphone } from 'lucide-react';
 import storeImage from '../assets/naturgy-store.png';
 
 const NATURGY_LOGO = 'https://www.naturgy.es/content/dam/naturgy/espana/global/logos/logo_naturgy_home_mobile.svg';
 
 export default function LoginPage() {
-  const { signIn, isAuthenticated, loading: authLoading } = useAuthContext();
+  const {
+    signIn, signOut, isAuthenticated, loading: authLoading,
+    mfaRequired, enrollMfa, verifyMfa,
+  } = useAuthContext();
+
+  // ─── Login form state ──────────────────────────────────────────────────────
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // ─── Reset password state ──────────────────────────────────────────────────
   const [resetMode, setResetMode] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
 
+  // ─── MFA state ─────────────────────────────────────────────────────────────
+  // mfaStep: null (login normal), 'enroll' (mostrar QR), 'verify' (pedir código)
+  const [mfaStep, setMfaStep] = useState(null);
+  const [factorId, setFactorId] = useState(null);
+  const [qrCode, setQrCode] = useState(null);
+  const [totpCode, setTotpCode] = useState('');
+  const [mfaLoading, setMfaLoading] = useState(false);
+  const [mfaError, setMfaError] = useState('');
+
   if (authLoading) return null;
   if (isAuthenticated) return <Navigate to="/home" replace />;
 
+  // ─── Login ─────────────────────────────────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!email || !password) { setError('Introduce email y contraseña'); return; }
     setLoading(true);
     setError('');
-    try { await signIn(email, password); }
-    catch (err) { setError(err.message); }
-    finally { setLoading(false); }
+    try {
+      const result = await signIn(email, password);
+      // Si signIn devuelve info de MFA, mostrar el paso correspondiente
+      if (result?.mfa?.required) {
+        if (result.mfa.enrolled) {
+          setFactorId(result.mfa.factorId);
+          setMfaStep('verify');
+        } else {
+          // Necesita registrar un factor TOTP (primera vez)
+          await startEnrollment();
+        }
+      }
+      // Si no hay MFA, isAuthenticated se pone a true y <Navigate> redirige
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // ─── MFA enrollment ────────────────────────────────────────────────────────
+  async function startEnrollment() {
+    setMfaLoading(true);
+    setMfaError('');
+    try {
+      const data = await enrollMfa();
+      setFactorId(data.id);
+      setQrCode(data.totp.qr_code);
+      setMfaStep('enroll');
+    } catch (err) {
+      setMfaError(err.message || 'Error al generar el código QR');
+    } finally {
+      setMfaLoading(false);
+    }
+  }
+
+  // ─── MFA verification (both enroll confirm and login verify) ───────────────
+  async function handleVerifyMfa() {
+    if (!totpCode || totpCode.length !== 6) {
+      setMfaError('Introduce el código de 6 dígitos');
+      return;
+    }
+    setMfaLoading(true);
+    setMfaError('');
+    try {
+      await verifyMfa(factorId, totpCode);
+      // Si verifyMfa no lanza error, la sesión sube a aal2 y mfaRequired
+      // se pone a false en useAuth → isAuthenticated=true → redirect a /home
+    } catch (err) {
+      const msg = err.message || 'Código incorrecto';
+      setMfaError(msg.includes('Invalid') ? 'Código incorrecto. Inténtalo de nuevo.' : msg);
+      setTotpCode('');
+    } finally {
+      setMfaLoading(false);
+    }
+  }
+
+  // ─── Reset password ────────────────────────────────────────────────────────
   const handleResetPassword = async () => {
     if (!email) { setError('Introduce tu email para recuperar la contraseña'); return; }
     setResetLoading(true);
@@ -48,6 +118,204 @@ export default function LoginPage() {
     }
   };
 
+  // ─── Cancelar MFA y volver al login ────────────────────────────────────────
+  function cancelMfa() {
+    setMfaStep(null);
+    setFactorId(null);
+    setQrCode(null);
+    setTotpCode('');
+    setMfaError('');
+    // Cerrar la sesión aal1 parcial para que pueda intentar de nuevo
+    signOut();
+  }
+
+  // ─── Render ────────────────────────────────────────────────────────────────
+
+  // Determinar qué contenido mostrar dentro del formulario
+  function renderFormContent() {
+    // ===== PASO MFA: ENROLLMENT (primera vez) =====
+    if (mfaStep === 'enroll') {
+      return (
+        <>
+          <div className="flex items-center gap-2 mb-3">
+            <ShieldCheck size={20} className="text-brand-500" />
+            <h2 className="text-lg font-bold text-text-primary">Configura tu verificación</h2>
+          </div>
+          <p className="text-xs text-text-secondary mb-4">
+            Para proteger tu cuenta, necesitas configurar una app autenticadora.
+            Descarga <strong>Google Authenticator</strong> o <strong>Microsoft Authenticator</strong> en tu móvil y escanea este código QR:
+          </p>
+
+          {qrCode && (
+            <div className="flex justify-center mb-4">
+              <div className="bg-white p-3 rounded-xl border border-surface-3 inline-block">
+                <img src={qrCode} alt="Código QR para autenticador" className="w-48 h-48" />
+              </div>
+            </div>
+          )}
+
+          {mfaError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-3 text-sm text-red-600">{mfaError}</div>
+          )}
+
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
+                Código de 6 dígitos de tu app
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                value={totpCode}
+                onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="000000"
+                autoComplete="one-time-code"
+                className="w-full px-4 py-3 bg-white border border-surface-3 rounded-xl text-text-primary text-center text-2xl tracking-[0.5em] font-mono placeholder-text-muted focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors"
+                autoFocus
+              />
+            </div>
+            <button onClick={handleVerifyMfa} disabled={mfaLoading || totpCode.length !== 6}
+              className="w-full py-3.5 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 shadow-sm shadow-brand-500/20">
+              {mfaLoading ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Verificando...</> : 'Activar y entrar'}
+            </button>
+            <button onClick={cancelMfa}
+              className="w-full py-2 text-text-secondary text-sm font-semibold hover:text-text-primary transition-colors">
+              ← Cancelar
+            </button>
+          </div>
+        </>
+      );
+    }
+
+    // ===== PASO MFA: VERIFY (login posterior) =====
+    if (mfaStep === 'verify' || mfaRequired) {
+      return (
+        <>
+          <div className="flex items-center gap-2 mb-3">
+            <Smartphone size={20} className="text-brand-500" />
+            <h2 className="text-lg font-bold text-text-primary">Verificación en dos pasos</h2>
+          </div>
+          <p className="text-xs text-text-secondary mb-4">
+            Abre tu app autenticadora e introduce el código de 6 dígitos que aparece en pantalla.
+          </p>
+
+          {mfaError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-3 text-sm text-red-600">{mfaError}</div>
+          )}
+
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
+                Código de verificación
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                value={totpCode}
+                onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="000000"
+                autoComplete="one-time-code"
+                className="w-full px-4 py-3 bg-white border border-surface-3 rounded-xl text-text-primary text-center text-2xl tracking-[0.5em] font-mono placeholder-text-muted focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors"
+                autoFocus
+              />
+            </div>
+            <button onClick={handleVerifyMfa} disabled={mfaLoading || totpCode.length !== 6}
+              className="w-full py-3.5 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 shadow-sm shadow-brand-500/20">
+              {mfaLoading ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Verificando...</> : 'Verificar'}
+            </button>
+            <button onClick={cancelMfa}
+              className="w-full py-2 text-text-secondary text-sm font-semibold hover:text-text-primary transition-colors">
+              ← Volver al login
+            </button>
+          </div>
+        </>
+      );
+    }
+
+    // ===== RESET PASSWORD =====
+    if (resetMode) {
+      return (
+        <>
+          <h2 className="text-lg font-bold text-text-primary mb-2">Recuperar contraseña</h2>
+          {resetSent ? (
+            <div className="py-4">
+              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <span className="text-xl">✉️</span>
+              </div>
+              <p className="text-sm text-text-primary text-center font-semibold mb-1">Email enviado</p>
+              <p className="text-xs text-text-secondary text-center mb-4">
+                Revisa tu bandeja de entrada en <strong>{email}</strong> y sigue las instrucciones.
+              </p>
+              <button onClick={() => { setResetMode(false); setResetSent(false); }}
+                className="w-full py-3 border border-surface-3 text-text-secondary font-semibold rounded-xl text-sm hover:bg-surface-2 transition-colors">
+                Volver al login
+              </button>
+            </div>
+          ) : (
+            <>
+              <p className="text-xs text-text-secondary mb-4">Introduce tu email y te enviaremos un enlace para restablecer tu contraseña.</p>
+              {error && <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-4 text-sm text-red-600">{error}</div>}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">Email</label>
+                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                    placeholder="tu@empresa.com" autoComplete="email"
+                    className="w-full px-4 py-3 bg-white border border-surface-3 rounded-xl text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors" />
+                </div>
+                <button onClick={handleResetPassword} disabled={resetLoading}
+                  className="w-full py-3.5 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2">
+                  {resetLoading ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Enviando...</> : 'Enviar enlace de recuperación'}
+                </button>
+                <button onClick={() => { setResetMode(false); setError(''); }}
+                  className="w-full py-2 text-text-secondary text-sm font-semibold hover:text-text-primary transition-colors">← Volver al login</button>
+              </div>
+            </>
+          )}
+        </>
+      );
+    }
+
+    // ===== LOGIN NORMAL =====
+    return (
+      <>
+        <h2 className="text-lg font-bold text-text-primary mb-5">Iniciar sesión</h2>
+        {error && <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-4 text-sm text-red-600">{error}</div>}
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">Email</label>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+              placeholder="tu@empresa.com" autoComplete="email"
+              className="w-full px-4 py-3 bg-white border border-surface-3 rounded-xl text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors" />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">Contraseña</label>
+            <div className="relative">
+              <input type={showPassword ? 'text' : 'password'} value={password}
+                onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password"
+                className="w-full px-4 py-3 pr-12 bg-white border border-surface-3 rounded-xl text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors" />
+              <button type="button" onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-text-muted hover:text-text-secondary transition-colors">
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <button type="button" onClick={() => { setResetMode(true); setError(''); }}
+              className="text-xs text-brand-500 font-semibold hover:text-brand-600 transition-colors">
+              ¿Olvidaste tu contraseña?
+            </button>
+          </div>
+          <button onClick={handleSubmit} disabled={loading}
+            className="w-full py-3.5 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 shadow-sm shadow-brand-500/20">
+            {loading ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Entrando...</> : 'Entrar'}
+          </button>
+        </div>
+      </>
+    );
+  }
+
   return (
     <div className="min-h-screen flex">
 
@@ -58,17 +326,12 @@ export default function LoginPage() {
           alt="Tienda Naturgy"
           className="absolute inset-0 w-full h-full object-cover"
         />
-        {/* Overlay sutil para dar profundidad */}
         <div className="absolute inset-0 bg-gradient-to-r from-black/20 via-transparent to-black/10" />
-
-        {/* Logo Naturgy blanco arriba */}
         <div className="absolute top-6 left-6 z-10">
           <img src={NATURGY_LOGO} alt="Naturgy"
             className="h-8 brightness-0 invert opacity-90 drop-shadow-lg"
             onError={(e) => { e.target.style.display = 'none'; }} />
         </div>
-
-        {/* Footer */}
         <div className="absolute bottom-5 left-6 z-10 text-[10px] text-white/70 drop-shadow-md">
           © {new Date().getFullYear()} Naturgy · CRM para KAMs
         </div>
@@ -108,85 +371,14 @@ export default function LoginPage() {
             <h1 className="text-2xl font-extrabold tracking-tight text-text-primary mb-1">CRM para KAMs</h1>
           </div>
 
-          {/* Formulario */}
+          {/* Formulario (login / reset / MFA enroll / MFA verify) */}
           <div className="bg-white/[0.97] lg:bg-surface-1 border border-surface-3 rounded-2xl p-6 shadow-sm backdrop-blur-sm lg:backdrop-blur-none">
-            {resetMode ? (
-              <>
-                <h2 className="text-lg font-bold text-text-primary mb-2">Recuperar contraseña</h2>
-                {resetSent ? (
-                  <div className="py-4">
-                    <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <span className="text-xl">✉️</span>
-                    </div>
-                    <p className="text-sm text-text-primary text-center font-semibold mb-1">Email enviado</p>
-                    <p className="text-xs text-text-secondary text-center mb-4">
-                      Revisa tu bandeja de entrada en <strong>{email}</strong> y sigue las instrucciones.
-                    </p>
-                    <button onClick={() => { setResetMode(false); setResetSent(false); }}
-                      className="w-full py-3 border border-surface-3 text-text-secondary font-semibold rounded-xl text-sm hover:bg-surface-2 transition-colors">
-                      Volver al login
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <p className="text-xs text-text-secondary mb-4">Introduce tu email y te enviaremos un enlace para restablecer tu contraseña.</p>
-                    {error && <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-4 text-sm text-red-600">{error}</div>}
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">Email</label>
-                        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                          placeholder="tu@empresa.com" autoComplete="email"
-                          className="w-full px-4 py-3 bg-white border border-surface-3 rounded-xl text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors" />
-                      </div>
-                      <button onClick={handleResetPassword} disabled={resetLoading}
-                        className="w-full py-3.5 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2">
-                        {resetLoading ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Enviando...</> : 'Enviar enlace de recuperación'}
-                      </button>
-                      <button onClick={() => { setResetMode(false); setError(''); }}
-                        className="w-full py-2 text-text-secondary text-sm font-semibold hover:text-text-primary transition-colors">← Volver al login</button>
-                    </div>
-                  </>
-                )}
-              </>
-            ) : (
-              <>
-                <h2 className="text-lg font-bold text-text-primary mb-5">Iniciar sesión</h2>
-                {error && <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-4 text-sm text-red-600">{error}</div>}
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">Email</label>
-                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-                      placeholder="tu@empresa.com" autoComplete="email"
-                      className="w-full px-4 py-3 bg-white border border-surface-3 rounded-xl text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">Contraseña</label>
-                    <div className="relative">
-                      <input type={showPassword ? 'text' : 'password'} value={password}
-                        onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password"
-                        className="w-full px-4 py-3 pr-12 bg-white border border-surface-3 rounded-xl text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors" />
-                      <button type="button" onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-text-muted hover:text-text-secondary transition-colors">
-                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="flex justify-end">
-                    <button type="button" onClick={() => { setResetMode(true); setError(''); }}
-                      className="text-xs text-brand-500 font-semibold hover:text-brand-600 transition-colors">
-                      ¿Olvidaste tu contraseña?
-                    </button>
-                  </div>
-                  <button onClick={handleSubmit} disabled={loading}
-                    className="w-full py-3.5 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 shadow-sm shadow-brand-500/20">
-                    {loading ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Entrando...</> : 'Entrar'}
-                  </button>
-                </div>
-              </>
-            )}
+            {renderFormContent()}
           </div>
 
-          <p className="text-center text-text-muted text-xs mt-6">¿No tienes cuenta? <a href="mailto:kamapp.reporte@gmail.com" className="text-brand-500 font-semibold hover:text-brand-600">Contacta con el administrador</a>.</p>
+          {!mfaStep && !resetMode && (
+            <p className="text-center text-text-muted text-xs mt-6">¿No tienes cuenta? <a href="mailto:kamapp.reporte@gmail.com" className="text-brand-500 font-semibold hover:text-brand-600">Contacta con el administrador</a>.</p>
+          )}
 
           <div className="text-center mt-8 pt-5 border-t border-surface-3">
             <p className="text-[9px] text-text-muted uppercase tracking-[0.12em] mb-1.5">Powered by</p>

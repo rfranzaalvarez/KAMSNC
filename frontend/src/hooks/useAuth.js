@@ -26,6 +26,15 @@ import { supabase } from '../lib/supabase';
  * - Si el perfil cargado tiene is_active === false, se fuerza un signOut
  *   inmediato y se expone deactivated=true, para que LoginPage muestre un
  *   mensaje claro ("Usuario dado de baja") en vez de dejarlo pasar.
+ *
+ * MFA (TOTP via app autenticadora):
+ * - Obligatorio para todos los usuarios, sin excepción.
+ * - Tras validar contraseña correctamente, se comprueba el AAL (Authenticator
+ *   Assurance Level). Si es aal1 (solo contraseña), mfaRequired=true, y el
+ *   usuario NO se considera autenticado (isAuthenticated=false) hasta que
+ *   complete la verificación TOTP (aal2).
+ * - Si el usuario no tiene ningún factor TOTP registrado, se fuerza el flujo
+ *   de enrollment (escanear QR) antes de poder acceder al CRM.
  */
 export function useAuth() {
   const [user, setUser] = useState(null);
@@ -33,6 +42,7 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [deactivated, setDeactivated] = useState(false);
+  const [mfaRequired, setMfaRequired] = useState(false);
 
   // Refs para acceso síncrono sin depender del closure del listener
   const userRef = useRef(null);
@@ -60,16 +70,14 @@ export function useAuth() {
   /** Comprueba si el token en localStorage está expirado */
   function isTokenExpired(tokenData) {
     if (!tokenData?.expires_at) return false;
-    // expires_at es Unix timestamp en segundos
     return tokenData.expires_at * 1000 < Date.now();
   }
 
   /**
    * Carga el perfil desde Supabase, con fallback a cache.
    * Si el perfil está desactivado (is_active === false), fuerza signOut
-   * inmediato y marca deactivated=true en vez de dejar pasar al usuario.
-   * Devuelve true si el perfil cargado está activo (o no se pudo determinar),
-   * false si se detectó que está desactivado.
+   * inmediato y marca deactivated=true.
+   * Devuelve true si el perfil está activo, false si desactivado.
    */
   const loadProfile = useCallback(async (userId) => {
     try {
@@ -81,7 +89,6 @@ export function useAuth() {
       if (err) throw err;
 
       if (data?.is_active === false) {
-        // Usuario dado de baja: no dejamos pasar, cerramos sesión y avisamos
         try { localStorage.removeItem('kamapp_profile_cache'); } catch {}
         userRef.current = null;
         setUser(null);
@@ -103,6 +110,37 @@ export function useAuth() {
     }
   }, []);
 
+  /**
+   * Comprueba el nivel de MFA del usuario autenticado.
+   * Devuelve { required, enrolled, factorId } indicando si se necesita MFA,
+   * si ya tiene un factor TOTP registrado, y su ID.
+   */
+  const checkMfaStatus = useCallback(async () => {
+    try {
+      const { data: aalData } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      const { data: factorsData } = await supabase.auth.mfa.listFactors();
+      const totpFactors = factorsData?.totp || [];
+
+      if (aalData?.currentLevel === 'aal2') {
+        // Ya verificó MFA en esta sesión
+        return { required: false, enrolled: true, factorId: totpFactors[0]?.id || null };
+      }
+
+      // aal1: contraseña correcta, pero MFA pendiente
+      if (totpFactors.length > 0) {
+        // Tiene factor registrado, necesita verificarlo
+        return { required: true, enrolled: true, factorId: totpFactors[0].id };
+      }
+
+      // No tiene ningún factor TOTP → obligar a registrar uno
+      return { required: true, enrolled: false, factorId: null };
+    } catch {
+      // Si falla la comprobación de MFA, dejar pasar (fail-open)
+      // para no bloquear el acceso por un error transitorio
+      return { required: false, enrolled: false, factorId: null };
+    }
+  }, []);
+
   /** Restaura la sesión desde localStorage cuando el lock falla */
   const recoverSession = useCallback(async () => {
     const tokenData = readTokenFromStorage();
@@ -110,7 +148,6 @@ export function useAuth() {
     if (isTokenExpired(tokenData)) return null;
 
     try {
-      // Intentar restaurar la sesión con Supabase
       const { data, error } = await supabase.auth.setSession({
         access_token: tokenData.access_token,
         refresh_token: tokenData.refresh_token,
@@ -118,7 +155,6 @@ export function useAuth() {
       if (!error && data?.session?.user) return data.session.user;
     } catch {}
 
-    // Si setSession falla, usar el user del token directamente
     return tokenData.user || null;
   }, []);
 
@@ -130,7 +166,6 @@ export function useAuth() {
 
     const init = async () => {
       try {
-        // Race entre getSession y timeout de 3s
         const result = await Promise.race([
           supabase.auth.getSession(),
           new Promise((resolve) =>
@@ -140,7 +175,6 @@ export function useAuth() {
 
         let currentUser = result?.data?.session?.user ?? null;
 
-        // Si getSession tardó demasiado o no devolvió usuario, recuperar de localStorage
         if (!currentUser) {
           currentUser = await recoverSession();
         }
@@ -149,7 +183,14 @@ export function useAuth() {
         setUser(currentUser);
         if (currentUser) {
           const isActive = await loadProfile(currentUser.id);
-          if (!isActive) { userRef.current = null; setUser(null); }
+          if (!isActive) {
+            userRef.current = null;
+            setUser(null);
+          } else {
+            // Comprobar si la sesión existente necesita MFA
+            const mfa = await checkMfaStatus();
+            setMfaRequired(mfa.required);
+          }
         }
       } catch (err) {
         console.error('Auth init error:', err);
@@ -164,14 +205,9 @@ export function useAuth() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
 
-        // SIGNED_OUT real solo si el usuario lo pidió explícitamente
-        // (no si es consecuencia del bug del lock al volver del background)
         if (event === 'SIGNED_OUT') {
-          // Verificar si hay token válido en localStorage
-          // Si lo hay, es un SIGNED_OUT falso causado por el bug del lock
           const tokenData = readTokenFromStorage();
           if (tokenData && !isTokenExpired(tokenData) && userRef.current) {
-            // SIGNED_OUT falso — ignorar y recuperar sesión
             console.warn('SIGNED_OUT falso detectado (bug Supabase lock), recuperando sesión...');
             const recovered = await recoverSession();
             if (recovered) {
@@ -188,28 +224,30 @@ export function useAuth() {
           setUser(null);
           setProfile(null);
           setError(null);
+          setMfaRequired(false);
           try { localStorage.removeItem('kamapp_profile_cache'); } catch {}
           setLoading(false);
           return;
         }
 
-        // Para cualquier otro evento (SIGNED_IN, TOKEN_REFRESHED, etc.)
         const currentUser = session?.user ?? null;
 
         if (currentUser) {
-          // Solo actualizar si el usuario cambió — evita re-renders y re-fetches
-          // innecesarios cuando TOKEN_REFRESHED dispara con el mismo usuario
           if (userRef.current?.id !== currentUser.id) {
             userRef.current = currentUser;
             setUser(currentUser);
             const isActive = await loadProfile(currentUser.id);
-            if (!isActive) { userRef.current = null; setUser(null); }
+            if (!isActive) {
+              userRef.current = null;
+              setUser(null);
+            } else {
+              const mfa = await checkMfaStatus();
+              setMfaRequired(mfa.required);
+            }
           } else {
-            // Mismo usuario, solo actualizar ref sin re-render
             userRef.current = currentUser;
           }
         } else if (event === 'TOKEN_REFRESHED' && !currentUser) {
-          // Token refresh falló por el bug del lock — intentar recuperar
           const recovered = await recoverSession();
           if (recovered) {
             userRef.current = recovered;
@@ -217,7 +255,6 @@ export function useAuth() {
             const isActive = await loadProfile(recovered.id);
             if (!isActive) { userRef.current = null; setUser(null); }
           }
-          // Si no se pudo recuperar, mantener el usuario actual (no borrar)
         }
 
         setLoading(false);
@@ -225,15 +262,14 @@ export function useAuth() {
     );
 
     return () => subscription.unsubscribe();
-  }, [loadProfile, recoverSession]);
+  }, [loadProfile, recoverSession, checkMfaStatus]);
 
   // ─── Recuperar sesión al volver al foco (visibilitychange) ──────────────────
   useEffect(() => {
     const handleVisibilityChange = async () => {
       if (document.visibilityState !== 'visible') return;
-      if (userRef.current) return; // Ya hay usuario, no hacer nada
+      if (userRef.current) return;
 
-      // La pestaña vuelve al foco sin usuario — intentar recuperar
       const tokenData = readTokenFromStorage();
       if (!tokenData || isTokenExpired(tokenData)) return;
 
@@ -258,6 +294,7 @@ export function useAuth() {
   const signIn = useCallback(async (email, password) => {
     setError(null);
     setDeactivated(false);
+    setMfaRequired(false);
     setLoading(true);
     try {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
@@ -274,11 +311,18 @@ export function useAuth() {
       if (data?.user) {
         const isActive = await loadProfile(data.user.id);
         if (!isActive) {
-          // loadProfile ya hizo signOut y marcó deactivated=true
           throw new Error('Usuario dado de baja. Contacta con tu administrador.');
         }
         userRef.current = data.user;
         setUser(data.user);
+
+        // Comprobar MFA
+        const mfa = await checkMfaStatus();
+        if (mfa.required) {
+          setMfaRequired(true);
+          // Devolvemos la info de MFA para que LoginPage sepa qué paso mostrar
+          return { ...data, mfa };
+        }
       }
 
       return data;
@@ -288,15 +332,42 @@ export function useAuth() {
     } finally {
       setLoading(false);
     }
-  }, [loadProfile]);
+  }, [loadProfile, checkMfaStatus]);
+
+  /**
+   * Inicia el enrollment de un nuevo factor TOTP.
+   * Devuelve { id, totp: { qr_code, secret, uri } }
+   */
+  const enrollMfa = useCallback(async () => {
+    const { data, error } = await supabase.auth.mfa.enroll({
+      factorType: 'totp',
+      friendlyName: 'CRM KAMs Authenticator',
+    });
+    if (error) throw error;
+    return data;
+  }, []);
+
+  /**
+   * Verifica un código TOTP contra un factor registrado.
+   * En un solo paso crea el challenge y lo verifica (challengeAndVerify).
+   * Si tiene éxito, la sesión sube a aal2 y mfaRequired se desactiva.
+   */
+  const verifyMfa = useCallback(async (factorId, code) => {
+    const { data, error } = await supabase.auth.mfa.challengeAndVerify({
+      factorId,
+      code,
+    });
+    if (error) throw error;
+    setMfaRequired(false);
+    return data;
+  }, []);
 
   const signOut = useCallback(async () => {
-    // Marcar que es un logout real antes de llamar a Supabase
-    // para que el listener no lo trate como un SIGNED_OUT falso
     userRef.current = null;
     try { await supabase.auth.signOut(); } catch {}
     setUser(null);
     setProfile(null);
+    setMfaRequired(false);
     setLoading(false);
     try { localStorage.removeItem('kamapp_profile_cache'); } catch {}
   }, []);
@@ -316,9 +387,12 @@ export function useAuth() {
     loading,
     error,
     deactivated,
+    mfaRequired,
     signIn,
     signOut,
-    isAuthenticated: !!user || !!effectiveProfile,
+    enrollMfa,
+    verifyMfa,
+    isAuthenticated: (!!user || !!effectiveProfile) && !mfaRequired,
     isKam: effectiveProfile?.role === 'kam',
     isManager: ['coordinator', 'manager', 'director'].includes(effectiveProfile?.role),
     isAdmin: effectiveProfile?.role === 'admin',
