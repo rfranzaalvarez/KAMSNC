@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuthContext } from '../components/AuthProvider';
 import { supabase } from '../lib/supabase';
-import { Eye, EyeOff, ShieldCheck, Smartphone } from 'lucide-react';
+import { Eye, EyeOff, ShieldCheck, Smartphone, Download, ScanLine, KeyRound } from 'lucide-react';
 import storeImage from '../assets/naturgy-store.png';
 
 const NATURGY_LOGO = 'https://www.naturgy.es/content/dam/naturgy/espana/global/logos/logo_naturgy_home_mobile.svg';
@@ -137,44 +137,89 @@ export default function LoginPage() {
     if (mfaStep === 'enroll') {
       return (
         <>
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-2 mb-4">
             <ShieldCheck size={20} className="text-brand-500" />
-            <h2 className="text-lg font-bold text-text-primary">Configura tu verificación</h2>
+            <h2 className="text-base font-bold text-text-primary">Protege tu cuenta</h2>
           </div>
-          <p className="text-xs text-text-secondary mb-4">
-            Para proteger tu cuenta, necesitas configurar una app autenticadora.
-            Descarga <strong>Google Authenticator</strong> o <strong>Microsoft Authenticator</strong> en tu móvil y escanea este código QR:
-          </p>
 
-          {qrCode && (
-            <div className="flex justify-center mb-4">
-              <div className="bg-white p-3 rounded-xl border border-surface-3 inline-block">
-                <img src={qrCode} alt="Código QR para autenticador" className="w-48 h-48" />
-              </div>
+          {/* ── PASO 1: Descargar app ── */}
+          <div className="mb-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-6 h-6 rounded-full bg-brand-500 text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0">1</div>
+              <span className="text-sm font-semibold text-text-primary">Descarga una app autenticadora</span>
             </div>
-          )}
+            <p className="text-[11px] text-text-secondary ml-8 mb-2">
+              Si aún no tienes una, instálala gratis en tu móvil:
+            </p>
+            <div className="ml-8 flex flex-col gap-1.5">
+              <a href="https://play.google.com/store/apps/details?id=com.google.android.apps.authenticator2" target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-2 px-3 py-2 bg-surface-1 border border-surface-3 rounded-lg hover:border-brand-500 transition-colors">
+                <Download size={14} className="text-brand-500 flex-shrink-0" />
+                <span className="text-xs text-text-secondary"><strong>Google Authenticator</strong> — Android</span>
+              </a>
+              <a href="https://apps.apple.com/app/google-authenticator/id388497605" target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-2 px-3 py-2 bg-surface-1 border border-surface-3 rounded-lg hover:border-brand-500 transition-colors">
+                <Download size={14} className="text-brand-500 flex-shrink-0" />
+                <span className="text-xs text-text-secondary"><strong>Google Authenticator</strong> — iPhone</span>
+              </a>
+              <a href="https://play.google.com/store/apps/details?id=com.azure.authenticator" target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-2 px-3 py-2 bg-surface-1 border border-surface-3 rounded-lg hover:border-brand-500 transition-colors">
+                <Download size={14} className="text-brand-500 flex-shrink-0" />
+                <span className="text-xs text-text-secondary"><strong>Microsoft Authenticator</strong> — Android</span>
+              </a>
+              <a href="https://apps.apple.com/app/microsoft-authenticator/id983156458" target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-2 px-3 py-2 bg-surface-1 border border-surface-3 rounded-lg hover:border-brand-500 transition-colors">
+                <Download size={14} className="text-brand-500 flex-shrink-0" />
+                <span className="text-xs text-text-secondary"><strong>Microsoft Authenticator</strong> — iPhone</span>
+              </a>
+            </div>
+          </div>
+
+          {/* ── PASO 2: Escanear QR ── */}
+          <div className="mb-4">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-6 h-6 rounded-full bg-brand-500 text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0">2</div>
+              <span className="text-sm font-semibold text-text-primary">Escanea este código QR</span>
+            </div>
+            <p className="text-[11px] text-text-secondary ml-8 mb-2">
+              Abre la app en tu móvil, pulsa el botón <strong>+</strong> (o "Añadir cuenta") y apunta la cámara a este código:
+            </p>
+            {qrCode && (
+              <div className="flex justify-center">
+                <div className="bg-white p-3 rounded-xl border-2 border-brand-500/30 inline-block">
+                  <img src={qrCode} alt="Código QR para autenticador" className="w-44 h-44" />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ── PASO 3: Introducir código ── */}
+          <div className="mb-2">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-6 h-6 rounded-full bg-brand-500 text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0">3</div>
+              <span className="text-sm font-semibold text-text-primary">Introduce el código de la app</span>
+            </div>
+            <p className="text-[11px] text-text-secondary ml-8 mb-2">
+              Tras escanear el QR, la app mostrará un código de <strong>6 dígitos</strong> que cambia cada 30 segundos. Introdúcelo aquí:
+            </p>
+          </div>
 
           {mfaError && (
             <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-3 text-sm text-red-600">{mfaError}</div>
           )}
 
           <div className="space-y-3">
-            <div>
-              <label className="block text-xs font-semibold text-text-secondary uppercase tracking-wider mb-1.5">
-                Código de 6 dígitos de tu app
-              </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                maxLength={6}
-                value={totpCode}
-                onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                placeholder="000000"
-                autoComplete="one-time-code"
-                className="w-full px-4 py-3 bg-white border border-surface-3 rounded-xl text-text-primary text-center text-2xl tracking-[0.5em] font-mono placeholder-text-muted focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors"
-                autoFocus
-              />
-            </div>
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              value={totpCode}
+              onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder="000000"
+              autoComplete="one-time-code"
+              className="w-full px-4 py-3 bg-white border border-surface-3 rounded-xl text-text-primary text-center text-2xl tracking-[0.5em] font-mono placeholder-text-muted focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-colors"
+              autoFocus
+            />
             <button onClick={handleVerifyMfa} disabled={mfaLoading || totpCode.length !== 6}
               className="w-full py-3.5 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 shadow-sm shadow-brand-500/20">
               {mfaLoading ? <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Verificando...</> : 'Activar y entrar'}
