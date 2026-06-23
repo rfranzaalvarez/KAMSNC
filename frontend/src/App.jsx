@@ -16,6 +16,7 @@ import AssistantPage from './pages/AssistantPage';
 import ExportPage from './pages/ExportPage';
 import WeeklyReportPage from './pages/WeeklyReportPage';
 import UserAdminPage from './pages/UserAdminPage';
+import RvcPage from './pages/RvcPage';
 
 initOfflineSync();
 
@@ -53,6 +54,7 @@ export default function App() {
               <Route path="/assistant" element={<AssistantPage />} />
               <Route path="/export" element={<ExportPage />} />
               <Route path="/report" element={<WeeklyReportPage />} />
+              <Route path="/rvc" element={<RvcPage />} />
             </Route>
             <Route
               path="/dashboard"

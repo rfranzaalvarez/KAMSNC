@@ -202,6 +202,10 @@ export function AppLayout() {
                       👤 Administrar usuarios
                     </NavLink>
                   )}
+                  <NavLink to="/rvc" onClick={() => setShowMenu(false)}
+                    className="block px-4 py-2.5 text-sm text-text-secondary hover:bg-surface-1 hover:text-text-primary">
+                    📈 RVC
+                  </NavLink>
                   <NavLink to="/import" onClick={() => setShowMenu(false)}
                     className="block px-4 py-2.5 text-sm text-text-secondary hover:bg-surface-1 hover:text-text-primary">
                     📥 Importar canales
