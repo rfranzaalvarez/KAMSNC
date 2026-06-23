@@ -122,9 +122,8 @@ export function AppLayout() {
   const [showAssistant, setShowAssistant] = useState(false);
   const [showReassignModal, setShowReassignModal] = useState(false);
 
-  // No existe un campo isDirector dedicado en useAuthContext; se comprueba
-  // directamente el role del profile (mismo patrón que ProtectedRoute).
-  const isDirector = profile?.role === 'director';
+  // Acceso al módulo de administración: directores O usuarios con can_manage_users
+  const canAdmin = profile?.role === 'director' || profile?.can_manage_users;
 
   useEffect(() => {
     const on = () => setIsOnline(true);
@@ -197,7 +196,7 @@ export function AppLayout() {
                       📊 Dashboard Manager
                     </NavLink>
                   )}
-                  {isDirector && (
+                  {canAdmin && (
                     <NavLink to="/admin/users" onClick={() => setShowMenu(false)}
                       className="block px-4 py-2.5 text-sm text-text-secondary hover:bg-surface-1 hover:text-text-primary">
                       👤 Administrar usuarios

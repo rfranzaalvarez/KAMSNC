@@ -42,10 +42,8 @@ export function ProtectedRoute({ children, requireManager = false, requireDirect
     return <Navigate to="/home" replace />;
   }
 
-  // requireDirector: no existe un campo isDirector dedicado en useAuth,
-  // así que se comprueba directamente el role del profile (igual de fiable,
-  // ya que profile ya está disponible y cacheado en este punto).
-  if (requireDirector && profile?.role !== 'director') {
+  // requireDirector: comprueba role='director' O can_manage_users=true.
+  if (requireDirector && profile?.role !== 'director' && !profile?.can_manage_users) {
     return <Navigate to="/home" replace />;
   }
 

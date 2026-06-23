@@ -366,7 +366,7 @@ export default function UserAdminPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
-  const isDirector = profile?.role === 'director';
+  const isDirector = profile?.role === 'director' || profile?.can_manage_users;
 
   useEffect(() => {
     if (isDirector) loadUsers();
@@ -393,7 +393,7 @@ export default function UserAdminPage() {
       <div className="text-center py-16">
         <Shield size={32} className="mx-auto mb-3 text-text-muted" />
         <p className="text-sm text-text-secondary">No tienes permiso para acceder a esta página.</p>
-        <p className="text-xs text-text-muted mt-1">Solo los directores pueden gestionar usuarios.</p>
+        <p className="text-xs text-text-muted mt-1">No tienes permisos para gestionar usuarios.</p>
       </div>
     );
   }
