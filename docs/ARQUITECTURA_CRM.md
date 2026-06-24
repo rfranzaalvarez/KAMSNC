@@ -1,6 +1,6 @@
 # CRM para KAMs — Documentación de arquitectura y traspaso
 
-> Última actualización: 21 de junio de 2026.
+> Última actualización: 24 de junio de 2026.
 > Este documento describe el estado **real** del sistema en producción, verificado directamente contra el código de los repositorios y la base de datos de Supabase — no es una memoria de diseño original, sino un inventario actual.
 
 ---
@@ -14,6 +14,7 @@ Es un CRM interno de Naturgy para el equipo de KAMs (Key Account Managers) que g
 - Planificar agenda y seguimiento
 - Ver paneles de manager/director con visibilidad sobre el equipo
 - Gamificación (ranking, insignias) entre KAMs
+- Panel RVC con KPIs de seguimiento comercial (leads, tasa de éxito, captación, volumen, visitas)
 - Funciona como PWA (instalable en móvil) con cola de sincronización si no hay conexión
 
 El nombre interno de la PWA en el código sigue siendo `FieldForce CRM` — es el nombre del proyecto original del que evolucionó este CRM; no afecta a nada funcional, pero puede generar confusión si alguien lo ve en el manifest del navegador.
@@ -76,7 +77,7 @@ El patrón habitual en este proyecto es: el componente React llama a `supabase.f
 
 ### Tablas clave en detalle
 
-**`profiles`** — espejo de `auth.users`, se crea automáticamente vía el trigger `handle_new_user` (sección 4.3) cuando alguien se registra. Columnas relevantes: `role` (`kam`/`coordinator`/`manager`/`director`), `reports_to` (uuid, jerarquía), `is_active` (boolean — usado para el sistema de "baja de usuario", ver sección 6.1), `zone`.
+**`profiles`** — espejo de `auth.users`, se crea automáticamente vía el trigger `handle_new_user` (sección 4.3) cuando alguien se registra. Columnas relevantes: `role` (`kam`/`coordinator`/`manager`/`director`), `reports_to` (uuid, jerarquía), `is_active` (boolean — usado para el sistema de "baja de usuario", ver sección 6.1), `can_manage_users` (boolean — da acceso al módulo de administración de usuarios sin necesitar `role = 'director'`, ver sección 6.6), `zone`.
 
 **`channels`** — entidad central. Columnas relevantes: `assigned_to` (uuid → qué KAM lleva este canal), `pipeline_stage` (fase interna: `lead`/`first_contact`/`proposal`/`negotiation`/`onboarding`/`active`/`closed_no_deal`), `status` (estado visible al usuario, **derivado** de `pipeline_stage` vía la función `stageToStatus()` en `crmConstants.js` — son dos campos relacionados pero no idénticos, ver sección 7.1).
 
@@ -192,6 +193,32 @@ Dos mecanismos distintos para la misma operación de fondo (`channels.assigned_t
 El componente `NotificationsBell` (dentro de `AppLayout.jsx`) muestra un icono de campana en la cabecera del CRM, con un contador rojo de alertas no leídas. Al pulsarla, despliega un panel con las 20 alertas más recientes (no descartadas), distinguiendo visualmente leídas de no leídas (punto de color + fondo resaltado). Al hacer clic en una alerta, se marca como leída.
 
 Las alertas de tipo `system` generadas por una baja de usuario (título "Canales reasignados") incluyen además un botón "Repartir estos canales →" que abre directamente el `BulkReassignModal`, preseleccionando al propio usuario como origen, para que pueda redistribuir los canales heredados sin tener que navegar a la pantalla de Canales.
+
+### 6.6 Acceso al módulo de administración (`can_manage_users`)
+
+Por defecto, solo los usuarios con `role = 'director'` pueden acceder al módulo de administración de usuarios (invitar, dar de baja, editar roles). El campo `can_manage_users` (boolean) en `profiles` permite conceder este mismo acceso a cualquier otro usuario sin cambiar su rol. Esto se comprueba en 4 puntos: `ProtectedRoute.jsx` (protección de ruta), `AppLayout.jsx` (visibilidad del enlace en el menú), `UserAdminPage.jsx` (control de acceso interno), y la Edge Function `manage-users` (validación en servidor).
+
+Para dar acceso de administración a un usuario sin que sea director:
+
+```sql
+UPDATE profiles SET can_manage_users = true WHERE full_name = 'Nombre del usuario';
+```
+
+La política RLS `profiles_update_own` también contempla `can_manage_users`, así que estos usuarios pueden editar perfiles de otros igual que un director.
+
+### 6.7 Panel RVC (KPIs de seguimiento comercial)
+
+Página `RvcPage.jsx`, accesible desde el menú del avatar (📈 RVC) para **todos los usuarios** sin restricción de rol. Incluye un selector de periodo temporal (últimos 7/30 días, este/anterior mes, este/anterior trimestre, este año) y 5 KPIs:
+
+| KPI | Cálculo | Filtrado por periodo |
+|---|---|---|
+| Nº de leads proactivos identificados | Canales creados en el periodo (todos los estados) | Sí |
+| Tasa de éxito de leads | Canales con status `activo` / total canales creados en el periodo × 100 | Sí |
+| Captación nuevas EECC | Canales creados en el periodo con status `activo` | Sí |
+| Volumen negociado | Suma de `volume_amount` (GWh) de todos los canales con status `activo` | **No** (total acumulado) |
+| Visitas realizadas | Visitas con `checkin_at` dentro del periodo | Sí |
+
+Los KAMs ven solo sus propios datos; managers y directores ven los del equipo completo (controlado por RLS, sin lógica adicional en el componente).
 
 ---
 

@@ -234,6 +234,7 @@ CREATE TABLE profiles (
   phone                  text,
   avatar_url             text,
   is_active              boolean DEFAULT true,
+  can_manage_users       boolean DEFAULT false,
   created_at             timestamptz DEFAULT now(),
   updated_at             timestamptz DEFAULT now()
 );
