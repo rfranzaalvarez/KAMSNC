@@ -236,6 +236,11 @@ function UserRow({ user: u, allUsers, onUpdated, onDeactivated, currentUserId })
             </button>
           )}
         </div>
+        {u.is_active === false && (
+          <div className="mt-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-700">
+            Al reactivar, el usuario podrá volver a acceder al CRM, pero sus canales no se restauran automáticamente — fueron reasignados durante la baja. Tendrás que asignarle canales manualmente desde la pantalla de Canales → Reasignar.
+          </div>
+        )}
       </div>
     );
   }
