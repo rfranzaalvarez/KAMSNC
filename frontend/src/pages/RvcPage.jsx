@@ -1,77 +1,27 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../components/AuthProvider';
+import PeriodSelector, { getPeriodRange } from '../components/PeriodSelector';
 import { Loader2, TrendingUp, Target, Building2, Zap, MapPin } from 'lucide-react';
-
-// ============ PERIODOS TEMPORALES ============
-function getPeriodRange(key) {
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-  switch (key) {
-    case '7d': {
-      const from = new Date(today);
-      from.setDate(from.getDate() - 7);
-      return { from, to: now };
-    }
-    case '30d': {
-      const from = new Date(today);
-      from.setDate(from.getDate() - 30);
-      return { from, to: now };
-    }
-    case 'this_month': {
-      const from = new Date(now.getFullYear(), now.getMonth(), 1);
-      return { from, to: now };
-    }
-    case 'last_month': {
-      const from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const to = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-      return { from, to };
-    }
-    case 'this_quarter': {
-      const qMonth = Math.floor(now.getMonth() / 3) * 3;
-      const from = new Date(now.getFullYear(), qMonth, 1);
-      return { from, to: now };
-    }
-    case 'last_quarter': {
-      const qMonth = Math.floor(now.getMonth() / 3) * 3;
-      const from = new Date(now.getFullYear(), qMonth - 3, 1);
-      const to = new Date(now.getFullYear(), qMonth, 0, 23, 59, 59);
-      return { from, to };
-    }
-    case 'this_year': {
-      const from = new Date(now.getFullYear(), 0, 1);
-      return { from, to: now };
-    }
-    default:
-      return { from: new Date(today), to: now };
-  }
-}
-
-const PERIOD_OPTIONS = [
-  { key: '7d',           label: 'Últimos 7 días' },
-  { key: '30d',          label: 'Últimos 30 días' },
-  { key: 'this_month',   label: 'Este mes' },
-  { key: 'last_month',   label: 'Mes anterior' },
-  { key: 'this_quarter', label: 'Este trimestre' },
-  { key: 'last_quarter', label: 'Trimestre anterior' },
-  { key: 'this_year',    label: 'Este año' },
-];
 
 // ============ PÁGINA RVC ============
 export default function RvcPage() {
   const { user, isManager } = useAuthContext();
   const [period, setPeriod] = useState('this_month');
+  const [range, setRange] = useState(() => getPeriodRange('this_month'));
   const [channels, setChannels] = useState([]);
   const [allActiveChannels, setAllActiveChannels] = useState([]);
   const [visits, setVisits] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const range = useMemo(() => getPeriodRange(period), [period]);
-
   useEffect(() => {
-    if (user) loadData();
-  }, [user, period]);
+    if (user && range?.from && range?.to) loadData();
+  }, [user, range]);
+
+  function handlePeriodChange(newPeriod, newRange) {
+    setPeriod(newPeriod);
+    setRange(newRange);
+  }
 
   async function loadData() {
     setLoading(true);
@@ -187,29 +137,8 @@ export default function RvcPage() {
         <h1 className="text-xl font-extrabold tracking-tight">RVC</h1>
       </div>
 
-      {/* Selector de periodo */}
-      <div className="flex gap-1.5 overflow-x-auto scrollbar-hide mb-5">
-        {PERIOD_OPTIONS.map(opt => (
-          <button
-            key={opt.key}
-            onClick={() => setPeriod(opt.key)}
-            className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
-              period === opt.key
-                ? 'bg-brand-500 text-white'
-                : 'bg-surface-2 text-text-secondary border border-surface-3 hover:border-surface-4'
-            }`}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Rango de fechas seleccionado */}
-      <div className="text-[11px] text-text-muted mb-4">
-        {range.from.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
-        {' — '}
-        {range.to.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
-      </div>
+      {/* Selector de periodo (componente compartido con DashboardPage) */}
+      <PeriodSelector period={period} range={range} onChange={handlePeriodChange} />
 
       {/* KPI Cards */}
       {loading ? (

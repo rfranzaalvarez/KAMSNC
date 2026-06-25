@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../components/AuthProvider';
 import { formatVolume, getVolumeConfig, VOLUME_UNITS } from '../components/VolumeEditor';
 import { PIPELINE_CONFIG, PIPELINE_STAGES } from '../lib/crmConstants';
+import PeriodSelector, { getPeriodRange } from '../components/PeriodSelector';
 import { Loader2, Users, Eye, ChevronRight, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
 
 // Stages que cuentan como "en proceso" (ni lead ni terminales)
@@ -160,8 +161,15 @@ export default function DashboardPage() {
   const [teamAlerts, setTeamAlerts] = useState([]);
   const [recentActivity, setRecentActivity] = useState([]);
   const [selectedKam, setSelectedKam] = useState(null);
+  const [period, setPeriod] = useState('this_month');
+  const [range, setRange] = useState(() => getPeriodRange('this_month'));
 
-  useEffect(() => { if (user) loadDashboard(); }, [user]);
+  useEffect(() => { if (user && range?.from && range?.to) loadDashboard(); }, [user, range]);
+
+  function handlePeriodChange(newPeriod, newRange) {
+    setPeriod(newPeriod);
+    setRange(newRange);
+  }
 
   async function loadDashboard() {
     setLoading(true);
@@ -189,16 +197,14 @@ export default function DashboardPage() {
       const kamIds = kamProfiles.map(k => k.id);
       if (!kamIds.length) { setTeamKams([]); setLoading(false); return; }
 
-      // 2. Dates
-      const mondayStart = (() => {
-        const d = new Date(); const day = d.getDay() || 7;
-        d.setDate(d.getDate() - day + 1); d.setHours(0, 0, 0, 0); return d.toISOString();
-      })();
+      // 2. Periodo (viene del PeriodSelector)
+      const fromISO = range.from.toISOString();
+      const toISO = range.to.toISOString();
 
       // 3. Queries
       const [visitsRes, interRes, channelsRes, alertsRes] = await Promise.allSettled([
-        supabase.from('visits').select('kam_id, checkin_at, result, channels(name)').in('kam_id', kamIds).gte('checkin_at', mondayStart).order('checkin_at', { ascending: false }),
-        supabase.from('channel_interactions').select('user_id, interaction_type, created_at, is_completed, channels(name), profiles(full_name)').in('user_id', kamIds).gte('created_at', mondayStart).eq('is_completed', true).order('created_at', { ascending: false }).limit(50),
+        supabase.from('visits').select('kam_id, checkin_at, result, channels(name)').in('kam_id', kamIds).gte('checkin_at', fromISO).lte('checkin_at', toISO).order('checkin_at', { ascending: false }),
+        supabase.from('channel_interactions').select('user_id, interaction_type, created_at, is_completed, channels(name), profiles(full_name)').in('user_id', kamIds).gte('created_at', fromISO).lte('created_at', toISO).eq('is_completed', true).order('created_at', { ascending: false }).limit(50),
         supabase.from('channels').select('id, assigned_to, pipeline_stage, volume_amount, volume_unit, created_at').in('assigned_to', kamIds),
         supabase.from('alerts').select('*, channels(name), profiles:user_id(full_name)').in('user_id', kamIds).eq('is_dismissed', false).order('priority').order('created_at', { ascending: false }).limit(10),
       ]);
@@ -310,7 +316,7 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight">Dashboard</h1>
           <p className="text-sm text-text-secondary">
-            {teamKams.length} KAMs · Semana del {new Date((() => { const d = new Date(); const day = d.getDay() || 7; d.setDate(d.getDate() - day + 1); return d; })()).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+            {teamKams.length} KAMs
           </p>
         </div>
         <div className="px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg">
@@ -318,11 +324,14 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Selector de periodo (mismo componente que RVC) */}
+      <PeriodSelector period={period} range={range} onChange={handlePeriodChange} />
+
       {/* KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {[
-          { val: totalVisits,   sub: `/ ${teamKams.length * 12}`, label: 'Visitas semana',   color: '#3b82f6', max: teamKams.length * 12 },
-          { val: totalActions,  sub: 'total',                     label: 'Acciones semana',  color: '#8b5cf6', max: teamKams.length * 20 },
+          { val: totalVisits,   sub: `/ ${teamKams.length * 12}`, label: 'Visitas periodo',   color: '#3b82f6', max: teamKams.length * 12 },
+          { val: totalActions,  sub: 'total',                     label: 'Acciones periodo',  color: '#8b5cf6', max: teamKams.length * 20 },
           { val: totalPipeline, sub: 'canales',                   label: 'En pipeline',      color: '#E87A1E', max: totalPipeline + 5 },
           { val: totalClosed,   sub: 'activos',                   label: 'Canales activos',  color: '#16a34a', max: Math.max(totalClosed, 5) },
         ].map((kpi, i) => (
