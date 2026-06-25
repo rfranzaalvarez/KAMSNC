@@ -1,6 +1,6 @@
 # CRM para KAMs — Documentación de arquitectura y traspaso
 
-> Última actualización: 25 de junio de 2026.
+> Última actualización: 25 de junio de 2026 (v2).
 > Este documento describe el estado **real** del sistema en producción, verificado directamente contra el código de los repositorios y la base de datos de Supabase — no es una memoria de diseño original, sino un inventario actual.
 
 ---
@@ -210,7 +210,7 @@ La política RLS `profiles_update_own` también contempla `can_manage_users`, as
 
 ### 6.7 Panel RVC (KPIs de seguimiento comercial)
 
-Página `RvcPage.jsx`, accesible desde el menú del avatar (📈 RVC) para **todos los usuarios** sin restricción de rol. Incluye un selector de periodo temporal (últimos 7/30 días, este/anterior mes, este/anterior trimestre, este año) y 5 KPIs:
+Página `RvcPage.jsx`, accesible desde el menú del avatar (📈 RVC) para **todos los usuarios** sin restricción de rol. Incluye un selector de periodo temporal y 5 KPIs:
 
 | KPI | Cálculo | Filtrado por periodo |
 |---|---|---|
@@ -221,6 +221,14 @@ Página `RvcPage.jsx`, accesible desde el menú del avatar (📈 RVC) para **tod
 | Visitas realizadas | Visitas con `checkin_at` dentro del periodo | Sí |
 
 Los KAMs ven solo sus propios datos; managers y directores ven los del equipo completo (controlado por RLS, sin lógica adicional en el componente).
+
+### 6.8 Selector de periodo compartido (`PeriodSelector`)
+
+El componente `components/PeriodSelector.jsx` es un selector de periodo reutilizable, compartido actualmente por la página RVC y el Dashboard Manager. Incluye 7 presets (últimos 7/30 días, este/anterior mes, este/anterior trimestre, este año) más una opción **"Personalizado"** que despliega dos campos de fecha (desde/hasta) tipo calendario nativo del navegador, permitiendo al usuario elegir cualquier rango de fechas arbitrario.
+
+El componente expone `period` (clave del preset activo), `range` (`{ from: Date, to: Date }`) y un callback `onChange(period, range)`. También exporta la función `getPeriodRange(key)` para calcular el rango de un preset desde fuera del componente.
+
+El **Dashboard Manager** (`DashboardPage.jsx`) usa este mismo componente para filtrar visitas, interacciones y actividad del equipo por el periodo seleccionado (antes usaba un filtro fijo de "esta semana" sin selector visible).
 
 ---
 
