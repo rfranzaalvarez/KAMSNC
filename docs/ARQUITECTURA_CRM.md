@@ -1,6 +1,6 @@
 # CRM para KAMs — Documentación de arquitectura y traspaso
 
-> Última actualización: 24 de junio de 2026.
+> Última actualización: 25 de junio de 2026.
 > Este documento describe el estado **real** del sistema en producción, verificado directamente contra el código de los repositorios y la base de datos de Supabase — no es una memoria de diseño original, sino un inventario actual.
 
 ---
@@ -171,6 +171,8 @@ Dado que 10 tablas distintas bloquean el borrado de un perfil con datos relacion
 3. Una Edge Function de Supabase (`manage-users`, acción `deactivate_user`) reasigna esos canales y marca `profiles.is_active = false`
 4. Se crea una alerta resumen (`alert_type = 'system'`) en el CRM avisando al destinatario, sin depender de email
 5. `useAuth.js` comprueba `is_active` justo después de validar la contraseña en el login; si es `false`, fuerza el cierre de sesión y muestra "Usuario dado de baja"
+
+**Reactivación de usuarios:** un usuario dado de baja puede ser reactivado desde el mismo módulo de administración: al pulsar el lápiz de edición sobre un usuario con la etiqueta "Dado de baja", el formulario muestra un botón verde "Reactivar" además de los campos habituales de edición. Al reactivar, se marca `is_active = true` directamente (sin Edge Function, usando la política RLS `profiles_update_own`), y el usuario podrá volver a iniciar sesión. Un aviso amarillo recuerda al administrador que los canales del usuario no se restauran automáticamente (fueron reasignados durante la baja) y que tendrá que asignarle canales manualmente desde la pantalla de Canales → Reasignar.
 
 **Caso no resuelto:** si el usuario dado de baja tenía gente reportándole (`reports_to` apuntando a él), esa jerarquía no se toca automáticamente — queda como tarea pendiente para quien continúe el desarrollo.
 
