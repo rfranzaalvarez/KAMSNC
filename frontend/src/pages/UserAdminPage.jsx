@@ -183,6 +183,24 @@ function UserRow({ user: u, allUsers, onUpdated, onDeactivated, currentUserId })
 
   const fieldClass = "px-2.5 py-1.5 bg-white border border-surface-3 rounded-lg text-xs focus:outline-none focus:border-brand-500";
 
+  async function reactivateUser() {
+    setSaving(true);
+    setRowError('');
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_active: true })
+        .eq('id', u.id);
+      if (error) throw error;
+      onUpdated();
+      setEditing(false);
+    } catch (err) {
+      setRowError(err.message || 'Error al reactivar');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (editing) {
     return (
       <div className="bg-surface-1 border border-brand-300 rounded-xl p-3 mb-2">
@@ -206,10 +224,18 @@ function UserRow({ user: u, allUsers, onUpdated, onDeactivated, currentUserId })
           <input type="tel" value={editForm.phone} onChange={(e) => setEditForm(prev => ({ ...prev, phone: e.target.value }))}
             placeholder="Teléfono" className={fieldClass} />
         </div>
-        <button onClick={saveEdit} disabled={saving}
-          className="w-full py-2 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5">
-          {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Guardar cambios
-        </button>
+        <div className="flex gap-2">
+          <button onClick={saveEdit} disabled={saving}
+            className="flex-1 py-2 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5">
+            {saving ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Guardar cambios
+          </button>
+          {u.is_active === false && (
+            <button onClick={reactivateUser} disabled={saving}
+              className="py-2 px-3 bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5">
+              Reactivar
+            </button>
+          )}
+        </div>
       </div>
     );
   }
