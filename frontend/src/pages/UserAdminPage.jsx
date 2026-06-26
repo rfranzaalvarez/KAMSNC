@@ -160,6 +160,9 @@ function UserRow({ user: u, allUsers, onUpdated, onDeactivated, currentUserId })
   const [saving, setSaving] = useState(false);
   const [showDeactivateModal, setShowDeactivateModal] = useState(false);
   const [rowError, setRowError] = useState('');
+  const [showResetPwd, setShowResetPwd] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [resetSuccess, setResetSuccess] = useState('');
 
   const possibleManagers = allUsers.filter(other => other.id !== u.id && ['coordinator', 'manager', 'director'].includes(other.role));
   const managerName = allUsers.find(other => other.id === u.reports_to)?.full_name;
@@ -213,6 +216,30 @@ function UserRow({ user: u, allUsers, onUpdated, onDeactivated, currentUserId })
     }
   }
 
+  async function resetPassword() {
+    if (!newPassword || newPassword.length < 6) {
+      setRowError('La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
+    setSaving(true);
+    setRowError('');
+    setResetSuccess('');
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke('manage-users', {
+        body: { action: 'reset_password', user_id: u.id, new_password: newPassword },
+      });
+      if (fnError) throw fnError;
+      if (data?.error) throw new Error(data.error);
+      setResetSuccess('Contraseña cambiada correctamente');
+      setNewPassword('');
+      setShowResetPwd(false);
+    } catch (err) {
+      setRowError(err.message || 'Error al cambiar contraseña');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (editing) {
     return (
       <div className="bg-surface-1 border border-brand-300 rounded-xl p-3 mb-2">
@@ -251,6 +278,35 @@ function UserRow({ user: u, allUsers, onUpdated, onDeactivated, currentUserId })
         {u.is_active === false && (
           <div className="mt-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-700">
             Al reactivar, el usuario podrá volver a acceder al CRM, pero sus canales no se restauran automáticamente — fueron reasignados durante la baja. Tendrás que asignarle canales manualmente desde la pantalla de Canales → Reasignar.
+          </div>
+        )}
+        {u.id !== currentUserId && (
+          <div className="mt-2">
+            {resetSuccess && (
+              <div className="flex items-center gap-1.5 text-[11px] text-green-600 mb-2">
+                <Check size={12} /> {resetSuccess}
+              </div>
+            )}
+            {showResetPwd ? (
+              <div className="flex items-center gap-2">
+                <input type="text" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Nueva contraseña (mín. 6 caracteres)"
+                  className="flex-1 px-3 py-2 bg-white border border-surface-3 rounded-lg text-xs focus:outline-none focus:border-brand-500" />
+                <button onClick={resetPassword} disabled={saving}
+                  className="px-3 py-2 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white text-xs font-bold rounded-lg">
+                  {saving ? '...' : 'Guardar'}
+                </button>
+                <button onClick={() => { setShowResetPwd(false); setNewPassword(''); }}
+                  className="px-2 py-2 text-text-muted text-xs hover:text-text-primary">
+                  Cancelar
+                </button>
+              </div>
+            ) : (
+              <button onClick={() => { setShowResetPwd(true); setResetSuccess(''); }}
+                className="text-[11px] font-semibold text-brand-500 hover:text-brand-600">
+                🔑 Cambiar contraseña
+              </button>
+            )}
           </div>
         )}
       </div>
