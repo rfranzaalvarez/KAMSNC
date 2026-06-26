@@ -18,7 +18,7 @@ const ROLE_LABELS = Object.fromEntries(ROLE_OPTIONS.map(r => [r.value, r.label])
 // ============ FORMULARIO DE ALTA ============
 function InviteUserForm({ onInvited, allUsers }) {
   const [form, setForm] = useState({
-    email: '', full_name: '', role: 'kam', zone: '', reports_to: '', phone: '',
+    email: '', full_name: '', role: 'kam', zone: '', reports_to: '', phone: '', password: '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -39,6 +39,10 @@ function InviteUserForm({ onInvited, allUsers }) {
       setError('Email y nombre completo son obligatorios');
       return;
     }
+    if (!form.password || form.password.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
 
     setSaving(true);
     try {
@@ -51,17 +55,18 @@ function InviteUserForm({ onInvited, allUsers }) {
           zone: form.zone.trim() || null,
           reports_to: form.reports_to || null,
           phone: form.phone.trim() || null,
+          password: form.password,
         },
       });
 
       if (fnError) throw fnError;
       if (data?.error) throw new Error(data.error);
 
-      setSuccess(`Invitación enviada a ${form.email}. Recibirá un email para establecer su contraseña.`);
-      setForm({ email: '', full_name: '', role: 'kam', zone: '', reports_to: '', phone: '' });
+      setSuccess(`Usuario ${form.full_name} creado correctamente. Ya puede acceder al CRM con su email y la contraseña que le has asignado.`);
+      setForm({ email: '', full_name: '', role: 'kam', zone: '', reports_to: '', phone: '', password: '' });
       onInvited();
     } catch (err) {
-      setError(err.message || 'Error al invitar al usuario');
+      setError(err.message || 'Error al crear el usuario');
     } finally {
       setSaving(false);
     }
@@ -73,7 +78,7 @@ function InviteUserForm({ onInvited, allUsers }) {
     <div className="bg-surface-1 border border-surface-3 rounded-2xl p-4 mb-5">
       <div className="flex items-center gap-2 mb-4">
         <UserPlus size={18} className="text-brand-500" />
-        <h2 className="text-base font-bold text-text-primary">Invitar nuevo usuario</h2>
+        <h2 className="text-base font-bold text-text-primary">Crear nuevo usuario</h2>
       </div>
 
       {error && (
@@ -132,9 +137,16 @@ function InviteUserForm({ onInvited, allUsers }) {
           </div>
         </div>
 
+        <div>
+          <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Contraseña temporal *</label>
+          <input type="text" value={form.password} onChange={(e) => update('password', e.target.value)}
+            placeholder="Mínimo 6 caracteres" className={fieldClass} required />
+          <p className="text-[10px] text-text-muted mt-1">Comunícasela al usuario por un canal seguro. Podrá cambiarla después desde su perfil.</p>
+        </div>
+
         <button type="submit" disabled={saving}
           className="w-full py-3 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-bold rounded-xl text-sm transition-colors flex items-center justify-center gap-2">
-          {saving ? <><Loader2 size={16} className="animate-spin" /> Enviando invitación...</> : <><UserPlus size={16} /> Invitar usuario</>}
+          {saving ? <><Loader2 size={16} className="animate-spin" /> Creando usuario...</> : <><UserPlus size={16} /> Crear usuario</>}
         </button>
       </form>
     </div>
