@@ -163,6 +163,7 @@ function UserRow({ user: u, allUsers, onUpdated, onDeactivated, currentUserId })
   const [showResetPwd, setShowResetPwd] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [resetSuccess, setResetSuccess] = useState('');
+  const [mfaResetting, setMfaResetting] = useState(false);
 
   const possibleManagers = allUsers.filter(other => other.id !== u.id && ['coordinator', 'manager', 'director'].includes(other.role));
   const managerName = allUsers.find(other => other.id === u.reports_to)?.full_name;
@@ -240,6 +241,24 @@ function UserRow({ user: u, allUsers, onUpdated, onDeactivated, currentUserId })
     }
   }
 
+  async function resetMfa() {
+    setMfaResetting(true);
+    setRowError('');
+    setResetSuccess('');
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke('manage-users', {
+        body: { action: 'reset_mfa', user_id: u.id },
+      });
+      if (fnError) throw fnError;
+      if (data?.error) throw new Error(data.error);
+      setResetSuccess('MFA reseteado. En su próximo login le saldrá el QR para configurarlo de nuevo.');
+    } catch (err) {
+      setRowError(err.message || 'Error al resetear MFA');
+    } finally {
+      setMfaResetting(false);
+    }
+  }
+
   if (editing) {
     return (
       <div className="bg-surface-1 border border-brand-300 rounded-xl p-3 mb-2">
@@ -302,10 +321,16 @@ function UserRow({ user: u, allUsers, onUpdated, onDeactivated, currentUserId })
                 </button>
               </div>
             ) : (
-              <button onClick={() => { setShowResetPwd(true); setResetSuccess(''); }}
-                className="text-[11px] font-semibold text-brand-500 hover:text-brand-600">
-                🔑 Cambiar contraseña
-              </button>
+              <div className="flex items-center gap-3">
+                <button onClick={() => { setShowResetPwd(true); setResetSuccess(''); }}
+                  className="text-[11px] font-semibold text-brand-500 hover:text-brand-600">
+                  🔑 Cambiar contraseña
+                </button>
+                <button onClick={resetMfa} disabled={mfaResetting}
+                  className="text-[11px] font-semibold text-brand-500 hover:text-brand-600 disabled:opacity-50">
+                  {mfaResetting ? '⏳ Reseteando...' : '📱 Resetear MFA'}
+                </button>
+              </div>
             )}
           </div>
         )}
