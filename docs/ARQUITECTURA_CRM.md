@@ -1,6 +1,6 @@
 # CRM para KAMs — Documentación de arquitectura y traspaso
 
-> Última actualización: 25 de junio de 2026 (v2).
+> Última actualización: 12 de julio de 2026.
 > Este documento describe el estado **real** del sistema en producción, verificado directamente contra el código de los repositorios y la base de datos de Supabase — no es una memoria de diseño original, sino un inventario actual.
 
 ---
@@ -107,6 +107,8 @@ El login tiene dos pasos obligatorios para todos los usuarios, sin excepción:
 - La API de MFA de Supabase se usa de forma nativa: `mfa.enroll({ factorType: 'totp' })`, `mfa.challengeAndVerify({ factorId, code })`, `mfa.getAuthenticatorAssuranceLevel()`, `mfa.listFactors()`.
 - No hay dependencia de ningún servicio externo de email, SMS ni proveedor de terceros. Todo funciona localmente entre la app autenticadora del móvil del usuario y Supabase Auth.
 
+**Reseteo de MFA:** si un usuario pierde acceso a su app autenticadora (cambio de móvil, pérdida del dispositivo, etc.), un administrador puede resetear su factor TOTP desde el módulo de administración de usuarios: lápiz de edición → **📱 Resetear MFA**. Esto borra los factores TOTP del usuario en Supabase Auth (vía la Edge Function `manage-users`, acción `reset_mfa`), y en su próximo login le aparecerá la pantalla de enrollment con un QR nuevo, como si fuera la primera vez. No afecta a sus datos, canales ni perfil.
+
 ### 4.2 RLS (Row Level Security) — la seguridad real del sistema
 
 Cada tabla tiene políticas que filtran qué filas puede ver/editar cada usuario según su `auth.uid()`. El patrón repetido en casi todas las tablas es:
@@ -162,9 +164,17 @@ Railway bloquea el tráfico SMTP saliente (puertos 465/587/25/2525) en los plane
 
 ## 6. Funcionalidades clave (cómo están construidas)
 
-### 6.1 Baja de usuarios (no hay borrado físico)
+### 6.1 Gestión de usuarios (alta, baja, contraseña, MFA)
 
-Dado que 10 tablas distintas bloquean el borrado de un perfil con datos relacionados (sección 3), el sistema **nunca borra usuarios**. En su lugar:
+El módulo de administración de usuarios (`UserAdminPage.jsx`) centraliza toda la gestión del ciclo de vida de los usuarios. Accesible para directores y usuarios con `can_manage_users = true` (sección 6.6). Todas las operaciones sensibles pasan por la Edge Function `manage-users` en Supabase, que valida permisos y usa la `SERVICE_ROLE_KEY`.
+
+**Alta de usuarios (acción `invite_user`):** el administrador crea al usuario con email, nombre, rol, zona, manager y una **contraseña temporal**. El sistema usa `auth.admin.createUser()` con `email_confirm: true` (sin enviar email de invitación, evitando la dependencia de SMTP y el problema conocido de redirección a localhost). El administrador comunica la contraseña al usuario por un canal seguro. El trigger `handle_new_user()` crea automáticamente la fila en `profiles`.
+
+**Cambio de contraseña (acción `reset_password`):** desde el formulario de edición de cualquier usuario (lápiz → 🔑 Cambiar contraseña), el administrador puede establecer una nueva contraseña. Usa `auth.admin.updateUserById()`. No se permite resetear la propia contraseña por esta vía (para eso existe "¿Olvidaste tu contraseña?" en la pantalla de login).
+
+**Reseteo de MFA (acción `reset_mfa`):** desde el mismo formulario de edición (lápiz → 📱 Resetear MFA), el administrador puede borrar los factores TOTP del usuario para forzar un re-enrollment. Usa `auth.admin.mfa.deleteFactor()`. Necesario cuando un usuario cambia de móvil o pierde acceso a su app autenticadora.
+
+**Baja de usuarios (acción `deactivate_user`):** dado que 10 tablas distintas bloquean el borrado de un perfil con datos relacionados (sección 3), el sistema **nunca borra usuarios**. En su lugar:
 
 1. El director elige "dar de baja" a un usuario desde `UserAdminPage.jsx`
 2. Si el usuario tiene canales asignados, es obligatorio elegir un destinatario (cualquier otro usuario activo) antes de continuar
@@ -198,7 +208,7 @@ Las alertas de tipo `system` generadas por una baja de usuario (título "Canales
 
 ### 6.6 Acceso al módulo de administración (`can_manage_users`)
 
-Por defecto, solo los usuarios con `role = 'director'` pueden acceder al módulo de administración de usuarios (invitar, dar de baja, editar roles). El campo `can_manage_users` (boolean) en `profiles` permite conceder este mismo acceso a cualquier otro usuario sin cambiar su rol. Esto se comprueba en 4 puntos: `ProtectedRoute.jsx` (protección de ruta), `AppLayout.jsx` (visibilidad del enlace en el menú), `UserAdminPage.jsx` (control de acceso interno), y la Edge Function `manage-users` (validación en servidor).
+Por defecto, solo los usuarios con `role = 'director'` pueden acceder al módulo de administración de usuarios (crear, dar de baja, cambiar contraseña, resetear MFA, editar roles). El campo `can_manage_users` (boolean) en `profiles` permite conceder este mismo acceso a cualquier otro usuario sin cambiar su rol. Esto se comprueba en 4 puntos: `ProtectedRoute.jsx` (protección de ruta), `AppLayout.jsx` (visibilidad del enlace en el menú), `UserAdminPage.jsx` (control de acceso interno), y la Edge Function `manage-users` (validación en servidor — 4 acciones: `invite_user`, `reset_password`, `reset_mfa`, `deactivate_user`).
 
 Para dar acceso de administración a un usuario sin que sea director:
 
