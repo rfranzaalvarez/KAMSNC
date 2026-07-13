@@ -8,6 +8,7 @@ import ChannelClassification from '../components/ChannelClassification';
 import ClassificationSelector from '../components/ClassificationSelector';
 import CompanyAnalysis from '../components/CompanyAnalysis';
 import ActivityTimeline from '../components/ActivityTimeline';
+import MeetingMinutes from '../components/MeetingMinutes';
 import VolumeEditor from '../components/VolumeEditor';
 import { ChannelReassign, BulkReassignModal } from '../components/ChannelReassign';
 import AddressFields from '../components/AddressFields';
@@ -628,6 +629,10 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
 
       <div className="mb-4">
         <ActivityTimeline channel={channel} />
+      </div>
+
+      <div className="mb-4">
+        <MeetingMinutes channelId={channelId} />
       </div>
 
       <div className="mb-4">
