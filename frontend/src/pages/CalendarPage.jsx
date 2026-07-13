@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../components/AuthProvider';
 import {
-  Loader2, Plus, ChevronLeft, ChevronRight, X, Check,
+  Loader2, Plus, ChevronLeft, ChevronRight, ChevronDown, X, Check,
   Clock, MapPin, Building2, CalendarDays, Mail, Phone,
   MessageCircle, Users, Linkedin, Calendar
 } from 'lucide-react';
@@ -188,6 +188,68 @@ function EventCard({ event, onDelete, onComplete }) {
   );
 }
 
+// ============ SELECTOR DE KAM (mismo patrón que PipelinePage) ============
+function KamSelector({ kams, selected, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    function handleClick(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const current = selected === 'all' ? { name: 'Todo el equipo', zone: '' } : kams.find(k => k.id === selected) || {};
+
+  return (
+    <div ref={ref} className="relative mb-3">
+      <button onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-3 py-2.5 bg-[#f7f8fa] border border-[#dde1e8] rounded-xl hover:border-[#c5cbd6] transition-colors">
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold text-white"
+            style={{ background: selected === 'all' ? '#003E6B' : '#E87A1E' }}>
+            {selected === 'all' ? '👥' : current.name?.charAt(0) || current.full_name?.charAt(0) || '?'}
+          </div>
+          <div className="text-left">
+            <div className="text-sm font-semibold text-[#1a1a2e]">{current.name || current.full_name}</div>
+            <div className="text-[10px] text-[#8b90a0]">
+              {selected === 'all' ? `${kams.length} KAMs` : `Zona ${current.zone || '-'}`}
+            </div>
+          </div>
+        </div>
+        <ChevronDown size={14} className="text-[#8b90a0]" />
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-[#dde1e8] rounded-xl shadow-lg z-20 overflow-hidden max-h-64 overflow-y-auto">
+          <button onClick={() => { onChange('all'); setOpen(false); }}
+            className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-[#f7f8fa] border-b border-[#eef0f4]">
+            <div className="w-7 h-7 rounded-lg bg-[#003E6B] flex items-center justify-center text-[10px] font-bold text-white">👥</div>
+            <div className="flex-1 text-left">
+              <div className="text-xs font-semibold text-[#1a1a2e]">Todo el equipo</div>
+              <div className="text-[9px] text-[#8b90a0]">{kams.length} KAMs</div>
+            </div>
+            {selected === 'all' && <span className="text-[#E87A1E] font-bold text-xs">✓</span>}
+          </button>
+          {kams.map(kam => (
+            <button key={kam.id} onClick={() => { onChange(kam.id); setOpen(false); }}
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-[#f7f8fa] border-b border-[#eef0f4] last:border-0">
+              <div className="w-7 h-7 rounded-lg bg-[#E87A1E] flex items-center justify-center text-[10px] font-bold text-white">
+                {kam.full_name?.charAt(0) || '?'}
+              </div>
+              <div className="flex-1 text-left">
+                <div className="text-xs font-semibold text-[#1a1a2e]">{kam.full_name}</div>
+                <div className="text-[9px] text-[#8b90a0]">Zona {kam.zone || '-'}</div>
+              </div>
+              {selected === kam.id && <span className="text-[#E87A1E] font-bold text-xs">✓</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============ MAIN CALENDAR PAGE ============
 export default function CalendarPage() {
   const { user, profile, isManager } = useAuthContext();
@@ -200,12 +262,21 @@ export default function CalendarPage() {
   const [channels, setChannels] = useState([]);
   const [showNewModal, setShowNewModal] = useState(false);
   const [toast, setToast] = useState(null);
+  const [selectedKam, setSelectedKam] = useState('all');
+  const [teamKams, setTeamKams] = useState([]);
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(currentWeekStart, i));
 
-  useEffect(() => { if (user) { loadWeekData(); loadChannels(); } }, [user, currentWeekStart]);
+  useEffect(() => { if (user) { loadWeekData(); loadChannels(); if (isManager) loadTeamKams(); } }, [user, currentWeekStart, selectedKam]);
   useEffect(() => { if (toast) { const t = setTimeout(() => setToast(null), 3000); return () => clearTimeout(t); } }, [toast]);
+
+  async function loadTeamKams() {
+    const { data } = await supabase.from('profiles')
+      .select('id, full_name, zone').eq('is_active', true)
+      .in('role', ['kam', 'coordinator']).order('full_name');
+    setTeamKams(data || []);
+  }
 
   async function loadChannels() {
     // FIX: igual que en ChannelsPage/PipelinePage — un manager/director debe
@@ -228,20 +299,23 @@ export default function CalendarPage() {
         (() => {
           let q = supabase.from('planned_visits').select('*, channels(name, address), profiles(full_name)')
             .gte('planned_date', startStr).lt('planned_date', endStr).order('planned_time');
-          if (!isManager) q = q.eq('kam_id', user.id);
+          if (selectedKam !== 'all') q = q.eq('kam_id', selectedKam);
+          else if (!isManager) q = q.eq('kam_id', user.id);
           return q;
         })(),
         (() => {
           let q = supabase.from('channel_interactions').select('*, channels(name, address), profiles(full_name)')
             .not('planned_date', 'is', null)
             .gte('planned_date', startStr).lt('planned_date', endStr).order('planned_time');
-          if (!isManager) q = q.eq('user_id', user.id);
+          if (selectedKam !== 'all') q = q.eq('user_id', selectedKam);
+          else if (!isManager) q = q.eq('user_id', user.id);
           return q;
         })(),
         (() => {
           let q = supabase.from('visits').select('id, channel_id, kam_id, checkin_at, channels(name), profiles(full_name)')
             .gte('checkin_at', currentWeekStart.toISOString()).lt('checkin_at', weekEnd.toISOString());
-          if (!isManager) q = q.eq('kam_id', user.id);
+          if (selectedKam !== 'all') q = q.eq('kam_id', selectedKam);
+          else if (!isManager) q = q.eq('kam_id', user.id);
           return q;
         })(),
       ]);
@@ -325,7 +399,7 @@ export default function CalendarPage() {
         _type: 'visit', _source: 'planned_visit', _sourceId: v.id,
         planned_time: v.planned_time, notes: v.notes, is_completed: v.is_completed,
         _channelName: v.channels?.name, _channelAddress: v.channels?.address,
-        _kamName: v.profiles?.full_name,
+        _kamName: selectedKam === 'all' ? v.profiles?.full_name : null,
       });
     });
 
@@ -335,7 +409,7 @@ export default function CalendarPage() {
         _type: a.interaction_type, _source: 'interaction', _sourceId: a.id,
         planned_time: a.planned_time, notes: a.notes, is_completed: a.is_completed,
         _channelName: a.channels?.name, _channelAddress: a.channels?.address,
-        _kamName: a.profiles?.full_name,
+        _kamName: selectedKam === 'all' ? a.profiles?.full_name : null,
       });
     });
 
@@ -346,7 +420,7 @@ export default function CalendarPage() {
           _type: 'visit', _source: 'completed_visit', _sourceId: v.id,
           planned_time: new Date(v.checkin_at).toTimeString().slice(0, 8),
           is_completed: true, _channelName: v.channels?.name,
-          _kamName: v.profiles?.full_name,
+          _kamName: selectedKam === 'all' ? v.profiles?.full_name : null,
         });
       }
     });
@@ -385,6 +459,11 @@ export default function CalendarPage() {
           <Plus size={14} /> Planificar
         </button>
       </div>
+
+      {/* Selector de KAM (solo para coordinadores+) */}
+      {isManager && teamKams.length > 0 && (
+        <KamSelector kams={teamKams} selected={selectedKam} onChange={setSelectedKam} />
+      )}
 
       {/* Legend */}
       <div className="flex flex-wrap gap-2">
