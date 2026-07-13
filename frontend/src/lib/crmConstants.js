@@ -168,7 +168,8 @@ export const RESULT_OPTIONS = [
 
 // ============ VOLUME UNITS ============
 export const VOLUME_UNITS = [
-  { key: 'swe_swg',   label: 'Residencial', unit: 'SWE+SWG', color: '#3b82f6', bg: '#eff6ff' },
-  { key: 'gwh_pymes', label: 'PYMEs',       unit: 'GWh',     color: '#8b5cf6', bg: '#f3eeff' },
-  { key: 'gwh_caes',  label: 'CAEs',        unit: 'GWh',     color: '#16a34a', bg: '#e6f5ed' },
+  { key: 'residencial', label: 'Residencial', unit: 'SWE+SWG', color: '#3b82f6', bg: '#eff6ff' },
+  { key: 'pymes',       label: 'PYMEs',       unit: 'GWh',     color: '#8b5cf6', bg: '#f3eeff' },
+  { key: 'caes',        label: 'CAEs',        unit: 'GWh',     color: '#16a34a', bg: '#e6f5ed' },
+  { key: 'solar',       label: 'Solar',       unit: 'kWp',     color: '#f59e0b', bg: '#fffbeb' },
 ];

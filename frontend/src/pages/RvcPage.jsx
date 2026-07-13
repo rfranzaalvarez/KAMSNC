@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuthContext } from '../components/AuthProvider';
 import PeriodSelector, { getPeriodRange } from '../components/PeriodSelector';
-import { Loader2, TrendingUp, Target, Building2, Zap, MapPin } from 'lucide-react';
+import { VOLUME_UNITS, formatVolume } from '../components/VolumeEditor';
+import { Loader2, TrendingUp, Target, Building2, Zap, MapPin, Sun } from 'lucide-react';
 
 // ============ PÁGINA RVC ============
 export default function RvcPage() {
@@ -76,10 +77,13 @@ export default function RvcPage() {
   // KPI 3: Captación nuevas EECC (canales creados en el periodo con status activo)
   const newActiveCount = activeInPeriod;
 
-  // KPI 4: Volumen negociado (suma GWh de TODOS los canales activos, sin filtro de periodo)
-  const totalGwh = allActiveChannels
-    .filter(c => c.volume_unit === 'gwh_pymes' || c.volume_unit === 'gwh_caes')
-    .reduce((sum, c) => sum + (parseFloat(c.volume_amount) || 0), 0);
+  // KPI 4: Volúmenes por tipo (de TODOS los canales activos, sin filtro de periodo)
+  const volumeByType = VOLUME_UNITS.map(vu => ({
+    ...vu,
+    total: allActiveChannels
+      .filter(c => c.volume_unit === vu.key)
+      .reduce((sum, c) => sum + (parseFloat(c.volume_amount) || 0), 0),
+  }));
 
   // KPI 5: Número de visitas en el periodo
   const visitsCount = visits.length;
@@ -112,15 +116,6 @@ export default function RvcPage() {
       bg: 'rgba(139,92,246,0.1)',
     },
     {
-      label: 'Volumen negociado',
-      value: totalGwh.toFixed(1),
-      unit: 'GWh (total activos)',
-      icon: Zap,
-      color: '#eab308',
-      bg: 'rgba(234,179,8,0.1)',
-      noPeriod: true,
-    },
-    {
       label: 'Visitas realizadas',
       value: visitsCount,
       unit: 'visitas',
@@ -129,6 +124,8 @@ export default function RvcPage() {
       bg: 'rgba(6,182,212,0.1)',
     },
   ];
+
+  const volIcons = { residencial: Zap, pymes: Building2, caes: Zap, solar: Sun };
 
   return (
     <div>
@@ -146,7 +143,8 @@ export default function RvcPage() {
           <Loader2 size={24} className="animate-spin text-brand-400" />
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {kpis.map((kpi, i) => {
             const Icon = kpi.icon;
             return (
@@ -158,13 +156,37 @@ export default function RvcPage() {
                   <span className="text-[11px] font-semibold text-text-secondary leading-tight">{kpi.label}</span>
                 </div>
                 <div className="text-2xl font-extrabold tracking-tight text-text-primary">{kpi.value}</div>
-                <div className="text-[10px] text-text-muted mt-0.5">
-                  {kpi.noPeriod ? kpi.unit : kpi.unit}
-                </div>
+                <div className="text-[10px] text-text-muted mt-0.5">{kpi.unit}</div>
               </div>
             );
           })}
         </div>
+
+        {/* Volumen negociado desglosado por tipo (total canales activos, sin filtro de periodo) */}
+        <div className="mt-5">
+          <h2 className="text-sm font-bold text-text-primary mb-3">Volumen negociado (total canales activos)</h2>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {volumeByType.map(v => {
+              const Icon = volIcons[v.key] || Zap;
+              const display = v.key === 'residencial' && v.total >= 1000
+                ? `${(v.total / 1000).toFixed(1)}K`
+                : v.total.toFixed(1);
+              return (
+                <div key={v.key} className="bg-surface-1 border border-surface-3 rounded-2xl p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ backgroundColor: v.bg }}>
+                      <Icon size={16} style={{ color: v.color }} />
+                    </div>
+                    <span className="text-[11px] font-semibold text-text-secondary">{v.label}</span>
+                  </div>
+                  <div className="text-2xl font-extrabold tracking-tight" style={{ color: v.color }}>{display}</div>
+                  <div className="text-[10px] text-text-muted mt-0.5">{v.unit}</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        </>
       )}
     </div>
   );
