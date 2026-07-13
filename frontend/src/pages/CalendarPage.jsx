@@ -165,6 +165,7 @@ function EventCard({ event, onDelete, onComplete }) {
         </div>
         <div className="text-[10px] text-text-muted truncate">
           <span className="font-semibold" style={{ color: cfg.color }}>{cfg.label}</span>
+          {event._kamName ? ` · ${event._kamName}` : ''}
           {event._channelAddress ? ` · ${event._channelAddress}` : ''}
         </div>
         {event.notes && <div className="text-[10px] text-text-muted mt-0.5 truncate">{event.notes}</div>}
@@ -224,13 +225,25 @@ export default function CalendarPage() {
       const endStr = formatDateKey(weekEnd);
 
       const [plannedRes, actionsRes, visitsRes] = await Promise.all([
-        supabase.from('planned_visits').select('*, channels(name, address)')
-          .eq('kam_id', user.id).gte('planned_date', startStr).lt('planned_date', endStr).order('planned_time'),
-        supabase.from('channel_interactions').select('*, channels(name, address)')
-          .eq('user_id', user.id).not('planned_date', 'is', null)
-          .gte('planned_date', startStr).lt('planned_date', endStr).order('planned_time'),
-        supabase.from('visits').select('id, channel_id, checkin_at, channels(name)')
-          .eq('kam_id', user.id).gte('checkin_at', currentWeekStart.toISOString()).lt('checkin_at', weekEnd.toISOString()),
+        (() => {
+          let q = supabase.from('planned_visits').select('*, channels(name, address), profiles(full_name)')
+            .gte('planned_date', startStr).lt('planned_date', endStr).order('planned_time');
+          if (!isManager) q = q.eq('kam_id', user.id);
+          return q;
+        })(),
+        (() => {
+          let q = supabase.from('channel_interactions').select('*, channels(name, address), profiles(full_name)')
+            .not('planned_date', 'is', null)
+            .gte('planned_date', startStr).lt('planned_date', endStr).order('planned_time');
+          if (!isManager) q = q.eq('user_id', user.id);
+          return q;
+        })(),
+        (() => {
+          let q = supabase.from('visits').select('id, channel_id, kam_id, checkin_at, channels(name), profiles(full_name)')
+            .gte('checkin_at', currentWeekStart.toISOString()).lt('checkin_at', weekEnd.toISOString());
+          if (!isManager) q = q.eq('kam_id', user.id);
+          return q;
+        })(),
       ]);
 
       setPlannedVisits(plannedRes.data || []);
@@ -312,6 +325,7 @@ export default function CalendarPage() {
         _type: 'visit', _source: 'planned_visit', _sourceId: v.id,
         planned_time: v.planned_time, notes: v.notes, is_completed: v.is_completed,
         _channelName: v.channels?.name, _channelAddress: v.channels?.address,
+        _kamName: v.profiles?.full_name,
       });
     });
 
@@ -321,6 +335,7 @@ export default function CalendarPage() {
         _type: a.interaction_type, _source: 'interaction', _sourceId: a.id,
         planned_time: a.planned_time, notes: a.notes, is_completed: a.is_completed,
         _channelName: a.channels?.name, _channelAddress: a.channels?.address,
+        _kamName: a.profiles?.full_name,
       });
     });
 
@@ -331,6 +346,7 @@ export default function CalendarPage() {
           _type: 'visit', _source: 'completed_visit', _sourceId: v.id,
           planned_time: new Date(v.checkin_at).toTimeString().slice(0, 8),
           is_completed: true, _channelName: v.channels?.name,
+          _kamName: v.profiles?.full_name,
         });
       }
     });
