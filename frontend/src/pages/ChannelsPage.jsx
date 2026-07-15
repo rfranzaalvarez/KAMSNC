@@ -26,7 +26,9 @@ import {
 } from 'lucide-react';
 
 // ============ MULTISELECT ORIGEN DEL LEAD (checkboxes) ============
-function LeadSourceCheckboxes({ value = [], onChange }) {
+function LeadSourceCheckboxes({ value = [], onChange, otherText = '', onOtherTextChange }) {
+  // value contiene los keys seleccionados (ej. ['industrial', 'kam', 'otros'])
+  // otherText es el texto libre cuando se marca "Otros"
   const toggle = (val) => {
     if (value.includes(val)) {
       onChange(value.filter(v => v !== val));
@@ -34,28 +36,54 @@ function LeadSourceCheckboxes({ value = [], onChange }) {
       onChange([...value, val]);
     }
   };
+
+  const pullOptions = LEAD_SOURCE_OPTIONS.filter(o => o.group === 'pull');
+  const pushOptions = LEAD_SOURCE_OPTIONS.filter(o => o.group === 'push');
+  const otrosOption = LEAD_SOURCE_OPTIONS.find(o => o.value === 'otros');
+  const otrosChecked = value.includes('otros');
+
+  function renderOption(opt) {
+    const checked = value.includes(opt.value);
+    return (
+      <button key={opt.value} type="button" onClick={() => toggle(opt.value)}
+        className={`w-full flex items-center gap-2.5 px-3 py-2 text-left border-b border-surface-3 last:border-0 transition-colors ${
+          checked ? 'bg-brand-500/10' : 'hover:bg-surface-1'
+        }`}>
+        <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
+          checked ? 'bg-brand-500 border-brand-500' : 'border-surface-3'
+        }`}>
+          {checked && <Check size={10} className="text-white" />}
+        </div>
+        <span className="text-xs text-text-secondary">{opt.label}</span>
+      </button>
+    );
+  }
+
   return (
-    <div className="border border-surface-3 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
-      {LEAD_SOURCE_OPTIONS.map(opt => {
-        const checked = value.includes(opt.value);
-        return (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => toggle(opt.value)}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 text-left border-b border-surface-3 last:border-0 transition-colors ${
-              checked ? 'bg-brand-500/10' : 'hover:bg-surface-1'
-            }`}
-          >
-            <div className={`w-4 h-4 rounded border flex items-center justify-center flex-shrink-0 ${
-              checked ? 'bg-brand-500 border-brand-500' : 'border-surface-3'
-            }`}>
-              {checked && <Check size={10} className="text-white" />}
-            </div>
-            <span className="text-xs text-text-secondary">{opt.label}</span>
-          </button>
-        );
-      })}
+    <div className="border border-surface-3 rounded-xl overflow-hidden max-h-64 overflow-y-auto">
+      {/* PULL */}
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border-b border-surface-3">
+        <span className="text-[9px] font-extrabold text-blue-600 uppercase tracking-wider">PULL</span>
+      </div>
+      {pullOptions.map(renderOption)}
+
+      {/* PUSH */}
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-pink-50 border-b border-surface-3 border-t border-surface-3">
+        <span className="text-[9px] font-extrabold text-pink-600 uppercase tracking-wider">PUSH</span>
+      </div>
+      {pushOptions.map(renderOption)}
+
+      {/* Otros */}
+      <div className="border-t border-surface-3">
+        {renderOption(otrosOption)}
+        {otrosChecked && (
+          <div className="px-3 pb-2">
+            <input type="text" value={otherText} onChange={(e) => onOtherTextChange?.(e.target.value)}
+              placeholder="Especifica la fuente..."
+              className="w-full px-3 py-2 bg-white border border-surface-3 rounded-lg text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-brand-500" />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -250,6 +278,12 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
   }
 
   function initForm(ch) {
+    // Parsear lead_source: si hay una entrada "otros:texto", extraer el texto
+    const rawSources = Array.isArray(ch?.lead_source) ? ch.lead_source : [];
+    const otrosEntry = rawSources.find(s => s.startsWith('otros:'));
+    const cleanSources = rawSources.map(s => s.startsWith('otros:') ? 'otros' : s);
+    const otrosText = otrosEntry ? otrosEntry.split(':').slice(1).join(':') : '';
+
     setEditForm({
       name: ch?.name || '',
       channel_type: ch?.channel_type || 'energia_mayorista',
@@ -259,7 +293,8 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
       cif: ch?.cif || '',
       website: ch?.website || '',
       google_rating: ch?.google_rating ?? '',
-      lead_source: Array.isArray(ch?.lead_source) ? ch.lead_source : [],
+      lead_source: cleanSources,
+      lead_source_other: otrosText,
       address: ch?.address || '',
       city: ch?.city || '',
       province: ch?.province || '',
@@ -298,7 +333,9 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
           cif: editForm.cif || null,
           website: editForm.website || null,
           google_rating: editForm.google_rating && editForm.google_rating !== 'no_tiene' ? parseFloat(editForm.google_rating) : null,
-          lead_source: editForm.lead_source?.length > 0 ? editForm.lead_source : null,
+          lead_source: editForm.lead_source?.length > 0
+            ? editForm.lead_source.map(s => s === 'otros' && editForm.lead_source_other ? `otros:${editForm.lead_source_other}` : s)
+            : null,
           address: editForm.address || null,
           city: editForm.city || null,
           province: editForm.province || null,
@@ -463,7 +500,8 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
 
               <div>
                 <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Origen del lead</label>
-                <LeadSourceCheckboxes value={editForm.lead_source || []} onChange={(v) => updateField('lead_source', v)} />
+                <LeadSourceCheckboxes value={editForm.lead_source || []} onChange={(v) => updateField('lead_source', v)}
+                  otherText={editForm.lead_source_other || ''} onOtherTextChange={(t) => updateField('lead_source_other', t)} />
               </div>
 
               <AddressFields form={editForm} update={updateField} fieldClass="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm focus:outline-none focus:border-brand-500" />
@@ -595,11 +633,16 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
                 <div className="flex items-start gap-2.5 text-sm">
                   <span className="text-text-muted flex-shrink-0 text-xs mt-0.5">📥</span>
                   <div className="flex flex-wrap gap-1">
-                    {channel.lead_source.map(src => (
-                      <span key={src} className="text-text-secondary text-xs">
-                        {LEAD_SOURCE_OPTIONS.find(o => o.value === src)?.label || src}
-                      </span>
-                    ))}
+                    {channel.lead_source.map(src => {
+                      const isOtros = src.startsWith('otros');
+                      const otrosText = isOtros && src.includes(':') ? src.split(':').slice(1).join(':') : '';
+                      const label = isOtros
+                        ? `Otros${otrosText ? `: ${otrosText}` : ''}`
+                        : (LEAD_SOURCE_OPTIONS.find(o => o.value === src)?.label || src);
+                      return (
+                        <span key={src} className="text-text-secondary text-xs">{label}</span>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -677,7 +720,7 @@ function NewChannelForm({ onBack, onSaved, types }) {
   // ---- PASO 1: solo datos de identificación/contacto ----
   const [form, setForm] = useState({
     name: '', contact_name: '', phone: '', email: '',
-    cif: '', website: '', google_rating: '', lead_source: [],
+    cif: '', website: '', google_rating: '', lead_source: [], lead_source_other: '',
   });
 
   // ---- PASO 2: clasificación + potenciales condicionados ----
@@ -733,7 +776,9 @@ function NewChannelForm({ onBack, onSaved, types }) {
         phone: form.phone || null, email: form.email || null,
         cif: form.cif || null, website: form.website || null,
         google_rating: form.google_rating && form.google_rating !== 'no_tiene' ? parseFloat(form.google_rating) : null,
-        lead_source: form.lead_source?.length > 0 ? form.lead_source : null,
+        lead_source: form.lead_source?.length > 0
+          ? form.lead_source.map(s => s === 'otros' && form.lead_source_other ? `otros:${form.lead_source_other}` : s)
+          : null,
         potencial_caes: touchesCaes ? (potencialCaes || null) : null,
         potencial_energia: touchesEnergia ? (potencialEnergia || null) : null,
         pipeline_stage: locationForm.pipeline_stage,
@@ -821,7 +866,8 @@ function NewChannelForm({ onBack, onSaved, types }) {
           </div>
           <div>
             <label className="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Origen del lead</label>
-            <LeadSourceCheckboxes value={form.lead_source} onChange={(v) => update('lead_source', v)} />
+            <LeadSourceCheckboxes value={form.lead_source} onChange={(v) => update('lead_source', v)}
+              otherText={form.lead_source_other || ''} onOtherTextChange={(t) => update('lead_source_other', t)} />
           </div>
           <button onClick={nextStep} className="w-full py-3 bg-brand-500 hover:bg-brand-600 text-white font-bold rounded-xl transition-colors mt-2">Siguiente →</button>
         </div>

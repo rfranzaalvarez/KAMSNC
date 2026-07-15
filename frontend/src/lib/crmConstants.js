@@ -109,19 +109,22 @@ export const COMUNIDADES_AUTONOMAS = [
 
 // ============ ORIGEN DEL LEAD ============
 export const LEAD_SOURCE_OPTIONS = [
-  { value: 'evento',                   label: 'Evento'                      },
-  { value: 'congreso',                 label: 'Congreso'                    },
-  { value: 'webinar',                  label: 'Webinar'                     },
-  { value: 'linkedin_sales_navigator', label: 'LinkedIn/Sales Navigator'    },
-  { value: 'recomendacion_partner',    label: 'Recomendación partner'       },
-  { value: 'industrial',               label: 'Industrial'                  },
-  { value: 'generacion_distribuida',   label: 'Generación Distribuida'      },
-  { value: 'canal_naturgy',            label: 'Canal Naturgy'               },
-  { value: 'kam',                      label: 'KAM'                         },
-  { value: 'asociacion_sectorial',     label: 'Asociación sectorial'        },
-  { value: 'fabricante',               label: 'Fabricante'                  },
-  { value: 'solicitud_directa',        label: 'Solicitud directa del canal' },
-  { value: 'otros',                    label: 'Otros'                       },
+  // PULL
+  { value: 'recomendacion_partner',    label: 'Recomendación partner',       group: 'pull' },
+  { value: 'industrial',               label: 'Industrial',                  group: 'pull' },
+  { value: 'generacion_distribuida',   label: 'Generación Distribuida',      group: 'pull' },
+  { value: 'canal_naturgy',            label: 'Canal Naturgy',               group: 'pull' },
+  { value: 'kam',                      label: 'KAM',                         group: 'pull' },
+  { value: 'solicitud_directa',        label: 'Solicitud directa del canal', group: 'pull' },
+  // PUSH
+  { value: 'evento',                   label: 'Evento',                      group: 'push' },
+  { value: 'congreso',                 label: 'Congreso',                    group: 'push' },
+  { value: 'webinar',                  label: 'Webinar',                     group: 'push' },
+  { value: 'linkedin_sales_navigator', label: 'LinkedIn/Sales Navigator',    group: 'push' },
+  { value: 'asociacion_sectorial',     label: 'Asociación sectorial',        group: 'push' },
+  { value: 'paginas_empleo',           label: 'Páginas de empleo',           group: 'push' },
+  // Sin grupo
+  { value: 'otros',                    label: 'Otros',                       group: null   },
 ];
 
 // ============ ZONAS ============
