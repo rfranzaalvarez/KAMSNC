@@ -303,6 +303,7 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
       potencial_energia: ch?.potencial_energia || '',
       pipeline_stage: ch?.pipeline_stage || 'lead',
       notes: ch?.notes || '',
+      rejection_reason: ch?.rejection_reason || '',
     });
   }
 
@@ -346,6 +347,7 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
           status: stageToStatus(editForm.pipeline_stage),
           ...(stageChanged ? { pipeline_stage_changed_at: now } : {}),
           notes: editForm.notes || null,
+          rejection_reason: editForm.pipeline_stage === 'closed_no_deal' ? (editForm.rejection_reason || null) : null,
         })
         .eq('id', channelId);
       if (error) throw error;
@@ -512,6 +514,15 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
                   rows={2} className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm resize-none focus:outline-none focus:border-brand-500" />
               </div>
 
+              {['closed_no_deal'].includes(editForm.pipeline_stage) && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-3">
+                  <label className="block text-[10px] font-bold text-red-400 uppercase tracking-wider mb-1">Motivo de descarte</label>
+                  <textarea value={editForm.rejection_reason} onChange={(e) => updateField('rejection_reason', e.target.value)}
+                    placeholder="Indica el motivo del rechazo o cierre sin acuerdo..."
+                    rows={2} className="w-full px-3 py-2.5 bg-white border border-red-200 rounded-xl text-sm resize-none focus:outline-none focus:border-red-400" />
+                </div>
+              )}
+
               <div className="flex gap-2 pt-1">
                 <button onClick={saveEdit} disabled={saving}
                   className="flex-1 py-2.5 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-bold rounded-xl text-sm transition-colors flex items-center justify-center gap-1.5">
@@ -652,6 +663,13 @@ function ChannelDetail({ channelId, onBack, types, typeMap }) {
               <div className="mt-4 p-3 bg-surface-0 rounded-lg">
                 <div className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Notas</div>
                 <p className="text-xs text-text-secondary leading-relaxed">{channel.notes}</p>
+              </div>
+            )}
+
+            {channel.rejection_reason && ['rechazado', 'cierre_sin_acuerdo'].includes(channel.status) && (
+              <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <div className="text-[10px] font-bold text-red-400 uppercase tracking-wider mb-1">Motivo de descarte</div>
+                <p className="text-xs text-red-600 leading-relaxed">{channel.rejection_reason}</p>
               </div>
             )}
           </>

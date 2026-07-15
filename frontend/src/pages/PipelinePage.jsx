@@ -325,6 +325,7 @@ export default function PipelinePage() {
   const [dragOver, setDragOver] = useState(null);
   const [draggingId, setDraggingId] = useState(null);
   const [toast, setToast] = useState(null);
+  const [pendingReject, setPendingReject] = useState(null);
   const scrollRef = useRef(null);
 
   // Filters
@@ -408,30 +409,37 @@ export default function PipelinePage() {
     }
   }
 
-  async function moveChannel(channelId, newStatusKey) {
+  async function moveChannel(channelId, newStatusKey, rejectionReason) {
     const oldChannels = [...channels];
     const channel = channels.find(c => c.id === channelId);
     if (!channel || channel.status === newStatusKey) return;
+
+    // Si el destino es rechazado o cierre sin acuerdo y no hay motivo, pedir motivo
+    if ((newStatusKey === 'rechazado' || newStatusKey === 'cierre_sin_acuerdo') && !rejectionReason) {
+      setPendingReject({ channelId, statusKey: newStatusKey });
+      return;
+    }
 
     const oldStatusKey = channel.status;
     const oldStatusObj = STATUS_LIST.find(s => s.key === oldStatusKey);
     const newStatusObj = STATUS_LIST.find(s => s.key === newStatusKey);
     const now = new Date().toISOString();
-    // pipeline_stage se deriva del estado destino (decisión interna, no se
-    // pide al usuario — ver STATUS_TO_DEFAULT_STAGE más arriba en el archivo)
     const newPipelineStage = STATUS_TO_DEFAULT_STAGE[newStatusKey] || channel.pipeline_stage;
     const oldStageKey = channel.pipeline_stage;
 
     setChannels(prev => prev.map(c =>
       c.id === channelId
-        ? { ...c, pipeline_stage: newPipelineStage, status: newStatusKey, pipeline_stage_changed_at: now, updated_at: now }
+        ? { ...c, pipeline_stage: newPipelineStage, status: newStatusKey, pipeline_stage_changed_at: now, updated_at: now, rejection_reason: rejectionReason || c.rejection_reason }
         : c
     ));
 
     try {
-      const { error } = await supabase.from('channels')
-        .update({ pipeline_stage: newPipelineStage, status: newStatusKey, pipeline_stage_changed_at: now })
-        .eq('id', channelId);
+      const updateData = { pipeline_stage: newPipelineStage, status: newStatusKey, pipeline_stage_changed_at: now };
+      if (rejectionReason) updateData.rejection_reason = rejectionReason;
+      // Si se mueve FUERA de rechazo, limpiar el motivo
+      if (newStatusKey !== 'rechazado' && newStatusKey !== 'cierre_sin_acuerdo') updateData.rejection_reason = null;
+
+      const { error } = await supabase.from('channels').update(updateData).eq('id', channelId);
       if (error) throw error;
 
       await supabase.from('channel_pipeline_history').insert({
@@ -697,6 +705,46 @@ export default function PipelinePage() {
         <div className="fixed bottom-24 left-4 right-4 sm:left-auto sm:right-4 sm:w-80 px-4 py-3 rounded-xl text-center text-sm font-bold shadow-xl z-50"
           style={{ backgroundColor: toast.color || '#6366f1', color: '#fff' }}>{toast.message}</div>
       )}
+
+      {/* Modal motivo de descarte */}
+      {pendingReject && (
+        <RejectReasonModal
+          channelName={channels.find(c => c.id === pendingReject.channelId)?.name || ''}
+          statusLabel={STATUS_LIST.find(s => s.key === pendingReject.statusKey)?.label || ''}
+          onConfirm={(reason) => { moveChannel(pendingReject.channelId, pendingReject.statusKey, reason); setPendingReject(null); }}
+          onCancel={() => setPendingReject(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ============ MODAL MOTIVO DE DESCARTE ============
+function RejectReasonModal({ channelName, statusLabel, onConfirm, onCancel }) {
+  const [reason, setReason] = useState('');
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white border border-surface-3 rounded-2xl w-full max-w-sm p-5">
+        <h3 className="font-bold text-sm text-text-primary mb-1">Motivo de descarte</h3>
+        <p className="text-xs text-text-secondary mb-3">
+          Vas a mover <strong>{channelName}</strong> a <strong>{statusLabel}</strong>. Indica el motivo:
+        </p>
+        <textarea value={reason} onChange={(e) => setReason(e.target.value)}
+          placeholder="Ej: No encaja con el perfil, sin presupuesto, no responde..."
+          rows={3}
+          className="w-full px-3 py-2.5 bg-white border border-surface-3 rounded-xl text-sm text-text-primary placeholder-text-muted resize-none focus:outline-none focus:border-brand-500 mb-3"
+          autoFocus />
+        <div className="flex gap-2">
+          <button onClick={onCancel}
+            className="flex-1 py-2.5 border border-surface-3 text-text-secondary text-sm font-semibold rounded-xl hover:bg-surface-1 transition-colors">
+            Cancelar
+          </button>
+          <button onClick={() => onConfirm(reason.trim())} disabled={!reason.trim()}
+            className="flex-1 py-2.5 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-sm font-bold rounded-xl transition-colors">
+            Confirmar
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
