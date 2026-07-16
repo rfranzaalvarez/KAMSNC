@@ -33,7 +33,7 @@ export default function RvcPage() {
       // 1. Canales creados en el periodo (para KPIs 1, 2, 3)
       let chQuery = supabase
         .from('channels')
-        .select('id, status, volume_amount, volume_unit, created_at')
+        .select('id, status, volume_amount, volume_unit, lead_source, created_at')
         .gte('created_at', fromISO)
         .lte('created_at', toISO);
       if (!isManager) chQuery = chQuery.eq('assigned_to', user.id);
@@ -67,11 +67,16 @@ export default function RvcPage() {
 
   // ─── Cálculos de KPIs ──────────────────────────────────────────────────────
 
-  // KPI 1: Nº de leads proactivos identificados (todos los canales creados en el periodo)
-  const leadsCount = channels.length;
+  // Lead sources de tipo PUSH (los KPIs 1 y 2 solo cuentan estos)
+  const PUSH_SOURCES = ['evento', 'congreso', 'webinar', 'linkedin_sales_navigator', 'asociacion_sectorial', 'paginas_empleo'];
+  const isPush = (ch) => Array.isArray(ch.lead_source) && ch.lead_source.some(s => PUSH_SOURCES.includes(s));
 
-  // KPI 2: Tasa de éxito (canales activos / total creados en el periodo)
-  const activeInPeriod = channels.filter(c => c.status === 'activo').length;
+  // KPI 1: Nº de leads proactivos identificados (solo canales PUSH creados en el periodo)
+  const pushChannels = channels.filter(isPush);
+  const leadsCount = pushChannels.length;
+
+  // KPI 2: Tasa de éxito (canales PUSH activos / total canales PUSH creados en el periodo)
+  const activeInPeriod = pushChannels.filter(c => c.status === 'activo').length;
   const successRate = leadsCount > 0 ? ((activeInPeriod / leadsCount) * 100).toFixed(1) : '0.0';
 
   // KPI 3: Captación nuevas EECC (canales creados en el periodo con status activo)
