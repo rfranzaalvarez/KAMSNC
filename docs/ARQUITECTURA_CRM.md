@@ -1,6 +1,6 @@
 # CRM para KAMs — Documentación de arquitectura y traspaso
 
-> Última actualización: 12 de julio de 2026.
+> Última actualización: 16 de julio de 2026.
 > Este documento describe el estado **real** del sistema en producción, verificado directamente contra el código de los repositorios y la base de datos de Supabase — no es una memoria de diseño original, sino un inventario actual.
 
 ---
@@ -51,9 +51,9 @@ El patrón habitual en este proyecto es: el componente React llama a `supabase.f
 
 ---
 
-## 3. Esquema real de la base de datos (18 tablas)
+## 3. Esquema real de la base de datos (19 tablas)
 
-**Nota:** el archivo `database/schema.sql` en el repositorio `KAMSNC` se regeneró el 19 de junio de 2026 a partir de la base de datos real en Supabase, y ahora refleja las 18 tablas completas con todas sus columnas, tipos y valores por defecto. Si en el futuro se añaden o modifican tablas directamente en Supabase, este archivo quedará desactualizado de nuevo — lo más fiable es regenerarlo periódicamente desde Supabase (ver sección 8.3).
+**Nota:** el archivo `database/schema.sql` en el repositorio `KAMSNC` se regeneró el 19 de junio de 2026 a partir de la base de datos real en Supabase, y refleja 18 de las 19 tablas actuales (falta `channel_meetings`, añadida posteriormente). Si en el futuro se añaden o modifican tablas directamente en Supabase, este archivo quedará desactualizado de nuevo — lo más fiable es regenerarlo periódicamente desde Supabase (ver sección 8.3).
 
 | Tabla | Para qué sirve |
 |---|---|
@@ -65,6 +65,7 @@ El patrón habitual en este proyecto es: el componente React llama a `supabase.f
 | `channel_interactions` | Registro de llamadas, emails, reuniones, etc. con un canal |
 | `channel_pipeline_history` | Historial de cambios de fase del pipeline de cada canal |
 | `channel_contact_prep` | Notas de preparación antes de contactar/visitar un canal |
+| `channel_meetings` | Actas de reuniones con canales (fecha, asistentes, notas, documento adjunto) |
 | `visits` | Visitas físicas registradas (check-in) |
 | `planned_visits` | Visitas/citas planificadas en agenda |
 | `account_plans` | Planes de cuenta anuales por canal |
@@ -79,7 +80,7 @@ El patrón habitual en este proyecto es: el componente React llama a `supabase.f
 
 **`profiles`** — espejo de `auth.users`, se crea automáticamente vía el trigger `handle_new_user` (sección 4.3) cuando alguien se registra. Columnas relevantes: `role` (`kam`/`coordinator`/`manager`/`director`), `reports_to` (uuid, jerarquía), `is_active` (boolean — usado para el sistema de "baja de usuario", ver sección 6.1), `can_manage_users` (boolean — da acceso al módulo de administración de usuarios sin necesitar `role = 'director'`, ver sección 6.6), `zone`.
 
-**`channels`** — entidad central. Columnas relevantes: `assigned_to` (uuid → qué KAM lleva este canal), `pipeline_stage` (fase interna: `lead`/`first_contact`/`proposal`/`negotiation`/`onboarding`/`active`/`closed_no_deal`), `status` (estado visible al usuario, **derivado** de `pipeline_stage` vía la función `stageToStatus()` en `crmConstants.js` — son dos campos relacionados pero no idénticos, ver sección 7.1).
+**`channels`** — entidad central. Columnas relevantes: `assigned_to` (uuid → qué KAM lleva este canal), `pipeline_stage` (fase interna: `lead`/`first_contact`/`proposal`/`negotiation`/`onboarding`/`active`/`closed_no_deal`), `status` (estado visible al usuario, **derivado** de `pipeline_stage` vía la función `stageToStatus()` en `crmConstants.js` — son dos campos relacionados pero no idénticos), `lead_source` (text array, con valores agrupados en PULL/PUSH — sección 6.11), `rejection_reason` (text, motivo de descarte cuando el canal está rechazado o cerrado sin acuerdo — sección 6.3).
 
 **`alerts`** — sistema de notificaciones internas. `alert_type` está limitado por un `CHECK constraint` a estos 6 valores exactos: `task`, `followup_overdue`, `pipeline_stalled`, `channel_inactive`, `plan_review`, `system`. Si en el futuro se necesita un tipo nuevo, hay que ampliar este constraint en Supabase antes de poder insertarlo.
 
@@ -196,6 +197,8 @@ Dos mecanismos distintos para la misma operación de fondo (`channels.assigned_t
 
 `PipelinePage.jsx` agrupa los canales en 7 columnas según `channels.status` (no según `pipeline_stage` directamente — hay una traducción intermedia vía `stageToStatus()` y `STATUS_TO_DEFAULT_STAGE` en el propio archivo). Al arrastrar un canal a otra columna, se recalcula también su `pipeline_stage` vía el mapeo inverso. Los colores de cada estado se importan de `STATUS_LIST` en `crmConstants.js` (fuente de verdad única para todos los colores del CRM).
 
+**Motivo de descarte:** al arrastrar un canal a "Rechazado" o "Cierre sin acuerdo", aparece un popup obligatorio (`RejectReasonModal`) pidiendo el motivo antes de confirmar el movimiento. El motivo se guarda en `channels.rejection_reason`. Desde la ficha del canal, el motivo también se puede editar al cambiar la fase a `closed_no_deal` (aparece un campo rojo en el formulario de edición). Si el canal se reactiva (se mueve fuera de rechazo), el motivo se limpia automáticamente. El motivo se muestra como un recuadro rojo en la ficha del canal cuando está en estado rechazado/cierre.
+
 ### 6.4 Modo offline
 
 `frontend/src/lib/offline.js` implementa una cola en IndexedDB: si el navegador está sin conexión, las operaciones de escritura (`insert`/`update`/`upsert`) se encolan en vez de fallar, y se sincronizan automáticamente en cuanto vuelve la conexión (evento `online` del navegador). Reintenta hasta 5 veces antes de abandonar una operación.
@@ -220,17 +223,29 @@ La política RLS `profiles_update_own` también contempla `can_manage_users`, as
 
 ### 6.7 Panel RVC (KPIs de seguimiento comercial)
 
-Página `RvcPage.jsx`, accesible desde el menú del avatar (📈 RVC) para **todos los usuarios** sin restricción de rol. Incluye un selector de periodo temporal y 5 KPIs:
+Página `RvcPage.jsx`, accesible desde el menú del avatar (📈 RVC) para **todos los usuarios** sin restricción de rol. Incluye un selector de periodo temporal y KPIs organizados en dos bloques:
 
-| KPI | Cálculo | Filtrado por periodo |
+**KPIs principales:**
+
+| KPI | Cálculo | Filtrado por periodo | Nota |
+|---|---|---|---|
+| Nº de leads proactivos identificados | Canales PUSH creados en el periodo | Sí | Solo canales con al menos un origen de lead PUSH |
+| Tasa de éxito de leads | Canales PUSH con status `activo` / total canales PUSH creados × 100 | Sí | Solo canales PUSH |
+| Captación nuevas EECC | Canales creados en el periodo con status `activo` | Sí | Todos los canales (sin filtro PUSH) |
+| Visitas realizadas | Visitas con `checkin_at` dentro del periodo | Sí | |
+
+Los orígenes de lead de tipo PUSH son: Evento, Congreso, Webinar, LinkedIn/Sales Navigator, Asociación sectorial, Páginas de empleo. Se identifican por el campo `group: 'push'` en `LEAD_SOURCE_OPTIONS` de `crmConstants.js`.
+
+**Volumen negociado (desglosado por tipo, total canales activos sin filtro de periodo):**
+
+| Tipo | Unidad | Color |
 |---|---|---|
-| Nº de leads proactivos identificados | Canales creados en el periodo (todos los estados) | Sí |
-| Tasa de éxito de leads | Canales con status `activo` / total canales creados en el periodo × 100 | Sí |
-| Captación nuevas EECC | Canales creados en el periodo con status `activo` | Sí |
-| Volumen negociado | Suma de `volume_amount` (GWh) de todos los canales con status `activo` | **No** (total acumulado) |
-| Visitas realizadas | Visitas con `checkin_at` dentro del periodo | Sí |
+| Residencial | SWE+SWG | Azul |
+| PYMEs | GWh | Violeta |
+| CAEs | GWh | Verde |
+| Solar | kWp | Amarillo |
 
-Los KAMs ven solo sus propios datos; managers y directores ven los del equipo completo (controlado por RLS, sin lógica adicional en el componente).
+Los KAMs ven solo sus propios datos; managers y directores ven los del equipo completo (controlado por RLS).
 
 ### 6.8 Selector de periodo compartido (`PeriodSelector`)
 
@@ -239,6 +254,27 @@ El componente `components/PeriodSelector.jsx` es un selector de periodo reutiliz
 El componente expone `period` (clave del preset activo), `range` (`{ from: Date, to: Date }`) y un callback `onChange(period, range)`. También exporta la función `getPeriodRange(key)` para calcular el rango de un preset desde fuera del componente.
 
 El **Dashboard Manager** (`DashboardPage.jsx`) usa este mismo componente para filtrar visitas, interacciones y actividad del equipo por el periodo seleccionado (antes usaba un filtro fijo de "esta semana" sin selector visible).
+
+### 6.9 Agenda con selector de KAM
+
+`CalendarPage.jsx` muestra la agenda semanal con visitas planificadas, interacciones y visitas completadas. Los coordinadores, managers y directores ven un **selector desplegable de KAM** (mismo componente `KamSelector` que existe en PipelinePage) que permite ver "Todo el equipo" (mezclando agendas con el nombre del KAM en cada evento) o filtrar por un KAM específico. Los KAMs ven solo su propia agenda sin selector. La visibilidad real la controla RLS vía `get_team_ids()`.
+
+### 6.10 Actas de reuniones
+
+Componente `MeetingMinutes.jsx`, visible como una sección en la ficha del canal (entre "Actividad del canal" y "Volumen Anual Negociado"). Permite registrar actas de reuniones con: fecha, asistentes, notas/resumen y un documento adjunto (PDF, imagen, Word, Excel, PowerPoint). Los archivos se almacenan en el bucket de Supabase Storage `meeting-documents`. Cada acta muestra quién la subió y permite eliminarla (solo el autor o un director/admin). Los datos se guardan en la tabla `channel_meetings`.
+
+### 6.11 Origen del lead (PULL / PUSH)
+
+Al crear o editar un canal, el selector de "Origen del lead" agrupa las opciones en dos categorías visuales:
+
+- **PULL** (cabecera azul): Recomendación partner, Industrial, Generación Distribuida, Canal Naturgy, KAM, Solicitud directa del canal
+- **PUSH** (cabecera rosa): Evento, Congreso, Webinar, LinkedIn/Sales Navigator, Asociación sectorial, Páginas de empleo
+
+Además, la opción **"Otros"** incluye un campo de texto libre que permite al usuario especificar la fuente. El texto se almacena como `"otros:texto libre"` dentro del array `lead_source` del canal (sin columna adicional en la BBDD). La clasificación PUSH es la que se usa para filtrar los KPIs 1 y 2 del panel RVC (sección 6.7).
+
+### 6.12 Tipos de volumen (incluido Solar)
+
+El selector de volumen en la ficha del canal (`VolumeEditor.jsx`) incluye 4 tipos: **Residencial** (SWE+SWG), **PYMEs** (GWh), **CAEs** (GWh) y **Solar** (kWp). Los tipos y sus colores se definen en `VOLUME_UNITS` tanto en `VolumeEditor.jsx` como en `crmConstants.js` (ambos sincronizados). Cada canal tiene un único tipo de volumen seleccionado (`volume_unit`) y un importe (`volume_amount`).
 
 ---
 
