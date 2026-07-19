@@ -264,6 +264,7 @@ export default function CalendarPage() {
   const [toast, setToast] = useState(null);
   const [selectedKam, setSelectedKam] = useState('all');
   const [teamKams, setTeamKams] = useState([]);
+  const [viewMode, setViewMode] = useState('day');
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(currentWeekStart, i));
@@ -475,6 +476,17 @@ export default function CalendarPage() {
         ))}
       </div>
 
+      <div className="grid grid-cols-2 gap-1 p-1 bg-surface-2 border border-surface-3 rounded-xl">
+        <button onClick={() => setViewMode('day')}
+          className={`py-2 rounded-lg text-xs font-semibold transition-colors ${viewMode === 'day' ? 'bg-white text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'}`}>
+          Día
+        </button>
+        <button onClick={() => setViewMode('week')}
+          className={`py-2 rounded-lg text-xs font-semibold transition-colors ${viewMode === 'week' ? 'bg-white text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'}`}>
+          Semana
+        </button>
+      </div>
+
       <div className="flex items-center justify-between">
         <button onClick={prevWeek} className="p-2 rounded-lg hover:bg-surface-2 text-text-secondary transition-colors"><ChevronLeft size={18} /></button>
         <button onClick={goToday} className="text-xs font-semibold text-brand-400 px-3 py-1.5 rounded-lg hover:bg-brand-500/10 transition-colors">Hoy</button>
@@ -509,37 +521,83 @@ export default function CalendarPage() {
         })}
       </div>
 
-      {/* Day detail */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-bold">
-            {isSameDay(selectedDay, today) ? 'Hoy' : selectedDay.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
-          </h2>
-          <span className="text-[11px] text-text-secondary">{dayEvents.length} acciones</span>
-        </div>
+      {/* Detalle diario o semanal */}
+      {viewMode === 'day' ? (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-bold">
+              {isSameDay(selectedDay, today) ? 'Hoy' : selectedDay.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
+            </h2>
+            <span className="text-[11px] text-text-secondary">{dayEvents.length} acciones</span>
+          </div>
 
-        {loading ? (
-          <div className="flex items-center justify-center py-10"><Loader2 size={20} className="animate-spin text-brand-400" /></div>
-        ) : dayEvents.length === 0 ? (
-          <div className="text-center py-10 bg-surface-1 border border-surface-3 rounded-xl">
-            <CalendarDays size={28} className="mx-auto mb-2 text-text-muted" />
-            <p className="text-sm text-text-secondary">Sin acciones para este día</p>
-            <button onClick={() => setShowNewModal(true)}
-              className="mt-3 text-xs font-semibold text-blue-500 hover:text-blue-400 transition-colors">+ Planificar acción</button>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {dayEvents.map(event => (
-              <EventCard key={`${event._source}-${event._sourceId}`} event={event}
-                onDelete={handleDeleteEvent} onComplete={handleCompleteEvent} />
-            ))}
-            <button onClick={() => setShowNewModal(true)}
-              className="w-full py-2.5 border border-dashed border-surface-3 hover:border-blue-300 hover:bg-blue-50/50 rounded-xl text-xs font-semibold text-text-muted hover:text-blue-500 transition-colors">
-              + Planificar otra acción
-            </button>
-          </div>
-        )}
-      </div>
+          {loading ? (
+            <div className="flex items-center justify-center py-10"><Loader2 size={20} className="animate-spin text-brand-400" /></div>
+          ) : dayEvents.length === 0 ? (
+            <div className="text-center py-10 bg-surface-1 border border-surface-3 rounded-xl">
+              <CalendarDays size={28} className="mx-auto mb-2 text-text-muted" />
+              <p className="text-sm text-text-secondary">Sin acciones para este día</p>
+              <button onClick={() => setShowNewModal(true)}
+                className="mt-3 text-xs font-semibold text-blue-500 hover:text-blue-400 transition-colors">+ Planificar acción</button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {dayEvents.map(event => (
+                <EventCard key={`${event._source}-${event._sourceId}`} event={event}
+                  onDelete={handleDeleteEvent} onComplete={handleCompleteEvent} />
+              ))}
+              <button onClick={() => setShowNewModal(true)}
+                className="w-full py-2.5 border border-dashed border-surface-3 hover:border-blue-300 hover:bg-blue-50/50 rounded-xl text-xs font-semibold text-text-muted hover:text-blue-500 transition-colors">
+                + Planificar otra acción
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {loading ? (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 size={20} className="animate-spin text-brand-400" />
+            </div>
+          ) : (
+            weekDays.map((day) => {
+              const events = getDayEvents(day);
+              const isToday = isSameDay(day, today);
+              return (
+                <section key={formatDateKey(day)} className="bg-surface-1 border border-surface-3 rounded-xl overflow-hidden">
+                  <button
+                    onClick={() => { setSelectedDay(new Date(day)); setViewMode('day'); }}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-surface-2 hover:bg-surface-3 transition-colors"
+                  >
+                    <div className="text-left">
+                      <h2 className={`text-sm font-bold ${isToday ? 'text-brand-500' : 'text-text-primary'}`}>
+                        {isToday ? 'Hoy' : day.toLocaleDateString('es-ES', { weekday: 'long' })}
+                      </h2>
+                      <p className="text-[10px] text-text-muted">
+                        {day.toLocaleDateString('es-ES', { day: 'numeric', month: 'long' })}
+                      </p>
+                    </div>
+                    <span className="text-[11px] text-text-secondary">{events.length} acciones</span>
+                  </button>
+
+                  <div className="p-3">
+                    {events.length === 0 ? (
+                      <p className="py-4 text-center text-xs text-text-muted">Sin acciones</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {events.map(event => (
+                          <EventCard key={`${event._source}-${event._sourceId}`} event={event}
+                            onDelete={handleDeleteEvent} onComplete={handleCompleteEvent} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </section>
+              );
+            })
+          )}
+        </div>
+      )}
 
       {/* Weekly summary */}
       <div className="bg-surface-1 border border-surface-3 rounded-xl p-4">
