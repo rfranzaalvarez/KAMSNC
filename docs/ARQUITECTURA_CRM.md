@@ -1,6 +1,6 @@
 # CRM para KAMs — Documentación de arquitectura y traspaso
 
-> Última actualización: 16 de julio de 2026.
+> Última actualización: 20 de julio de 2026.
 > Este documento describe el estado **real** del sistema en producción, verificado directamente contra el código de los repositorios y la base de datos de Supabase — no es una memoria de diseño original, sino un inventario actual.
 
 ---
@@ -120,7 +120,9 @@ OR assigned_to IN (SELECT get_team_ids(auth.uid())) -- o de su equipo
 OR EXISTS (... role = 'admin')                      -- o es admin
 ```
 
-**Bug recurrente a tener en cuenta:** cuando una operación de `UPDATE` no cumple la política RLS, Postgres/Supabase **no lanza un error** — el `UPDATE` simplemente afecta a 0 filas, y el código en React, si no comprueba explícitamente cuántas filas se actualizaron, asume que todo fue bien. Esto ya ha causado al menos un bug real en producción (la edición de usuarios en el panel de administración no se guardaba, sin ningún error visible, porque la política `profiles_update_own` no incluía la condición para directores). **Si algo "no se guarda" sin dar ningún error, sospecha primero de RLS**, no de un fallo del código React.
+**Bug recurrente a tener en cuenta:** cuando una operación de `UPDATE` no cumple la política RLS, Postgres/Supabase **no lanza un error** — el `UPDATE` simplemente afecta a 0 filas, y el código en React, si no comprueba explícitamente cuántas filas se actualizaron, asume que todo fue bien. Esto ya ha causado al menos un bug real en producción (la edición de usuarios en el panel de administración no se guardaba, sin ningún error visible, porque la política `profiles_update_own` no incluía la condición para directores). **Si algo "no se guarda" o "no se ve" sin dar ningún error, sospecha primero de RLS**, no de un fallo del código React.
+
+**Fix aplicado (julio 2026):** las políticas de SELECT de `channel_interactions` y `channel_notes` originalmente solo permitían ver datos del propio usuario o de canales asignados directamente. Se corrigieron para incluir `get_team_ids(auth.uid())`, permitiendo que coordinadores, managers y directores vean las llamadas, emails, reuniones y notas de los canales de sus KAMs — no solo las visitas (que ya tenían esta política correcta desde el principio).
 
 ### 4.3 Funciones de Postgres (lógica de servidor)
 
