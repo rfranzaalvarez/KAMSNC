@@ -54,6 +54,39 @@ function formatShortDate(dateStr) {
   return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
 }
 
+// ============ GET CHANNEL LAST ACTIVITY ============
+// Calcula la fecha de la última actividad en un canal consultando todas las tablas de actividad.
+// Usado para filtrar el pipeline por período (no solo por cambio de fase).
+async function getChannelLastActivity(channelId) {
+  try {
+    const results = await Promise.allSettled([
+      supabase.from('visits').select('checkin_at').eq('channel_id', channelId).order('checkin_at', { ascending: false }).limit(1),
+      supabase.from('channel_interactions').select('created_at').eq('channel_id', channelId).order('created_at', { ascending: false }).limit(1),
+      supabase.from('channel_meetings').select('created_at').eq('channel_id', channelId).order('created_at', { ascending: false }).limit(1),
+      supabase.from('channel_notes').select('created_at').eq('channel_id', channelId).order('created_at', { ascending: false }).limit(1),
+    ]);
+
+    const dates = [];
+    if (results[0].status === 'fulfilled' && results[0].value.data?.length > 0) {
+      dates.push(new Date(results[0].value.data[0].checkin_at));
+    }
+    if (results[1].status === 'fulfilled' && results[1].value.data?.length > 0) {
+      dates.push(new Date(results[1].value.data[0].created_at));
+    }
+    if (results[2].status === 'fulfilled' && results[2].value.data?.length > 0) {
+      dates.push(new Date(results[2].value.data[0].created_at));
+    }
+    if (results[3].status === 'fulfilled' && results[3].value.data?.length > 0) {
+      dates.push(new Date(results[3].value.data[0].created_at));
+    }
+
+    return dates.length > 0 ? new Date(Math.max(...dates.map(d => d.getTime()))).toISOString() : null;
+  } catch (err) {
+    console.error('Error getting channel last activity:', err);
+    return null;
+  }
+}
+
 // ============ CHANNEL CARD ============
 function ChannelCard({ channel, onDragStart, stage, onClick, typeMap, showKam, dateType, classifications }) {
   const daysInStage = daysSince(channel.pipeline_stage_changed_at || channel.updated_at);
@@ -83,7 +116,7 @@ function ChannelCard({ channel, onDragStart, stage, onClick, typeMap, showKam, d
       <div className="text-[9px] text-[#8b90a0] mb-1">
         {dateType === 'creation'
           ? `Creado: ${formatShortDate(channel.created_at)}`
-          : `→ ${formatShortDate(channel.pipeline_stage_changed_at || channel.updated_at)}`}
+          : `Actividad: ${formatShortDate(channel.last_activity_at || channel.pipeline_stage_changed_at || channel.updated_at)}`}
       </div>
 
       {channel.volume_amount != null && channel.volume_unit && (
@@ -220,7 +253,7 @@ function PipelineMobile({ channelsByStage, onMove, loading, onChannelClick, type
                       <div className="text-sm font-semibold truncate hover:text-[#E87A1E] transition-colors">{ch.name}</div>
                       <div className="text-[10px] text-[#8b90a0]">
                         {showKam && ch.profiles?.full_name ? `${ch.profiles.full_name} · ` : ''}
-                        {dateType === 'creation' ? `Creado: ${formatShortDate(ch.created_at)}` : `→ ${formatShortDate(ch.pipeline_stage_changed_at || ch.updated_at)}`}
+                        {dateType === 'creation' ? `Creado: ${formatShortDate(ch.created_at)}` : `Actividad: ${formatShortDate(ch.last_activity_at || ch.pipeline_stage_changed_at || ch.updated_at)}`}
                       </div>
                       {ch.volume_amount != null && ch.volume_unit && (
                         <span className="inline-block mt-1 text-[9px] font-bold px-1.5 py-0.5 rounded"
@@ -327,6 +360,7 @@ export default function PipelinePage() {
   const [toast, setToast] = useState(null);
   const [pendingReject, setPendingReject] = useState(null);
   const scrollRef = useRef(null);
+  const [loadingActivities, setLoadingActivities] = useState(false);
 
   // Filters
   const [period, setPeriod] = useState('all');
@@ -346,6 +380,30 @@ export default function PipelinePage() {
 
   useEffect(() => { if (user) { loadChannels(); if (isManager) loadTeamKams(); } }, [user]);
   useEffect(() => { if (toast) { const t = setTimeout(() => setToast(null), 2500); return () => clearTimeout(t); } }, [toast]);
+
+  // Enrich channels with last_activity_at when dateType changes to activity
+  useEffect(() => {
+    if (dateType !== 'creation' && period !== 'all' && !loadingActivities) {
+      enrichChannelsWithActivity();
+    }
+  }, [dateType, period]);
+
+  async function enrichChannelsWithActivity() {
+    setLoadingActivities(true);
+    try {
+      const enriched = await Promise.all(
+        channels.map(async (ch) => {
+          const lastActivity = await getChannelLastActivity(ch.id);
+          return { ...ch, last_activity_at: lastActivity };
+        })
+      );
+      setChannels(enriched);
+    } catch (err) {
+      console.error('Error enriching channels with activity:', err);
+    } finally {
+      setLoadingActivities(false);
+    }
+  }
 
   async function loadTeamKams() {
     try {
@@ -469,7 +527,12 @@ export default function PipelinePage() {
       range = getDateRange(period);
     }
 
-    const dateField = dateType === 'creation' ? ch.created_at : (ch.pipeline_stage_changed_at || ch.updated_at);
+    // Si dateType es 'creation', filtrar por created_at
+    // Si dateType es 'activity', filtrar por last_activity_at (que incluye calls, meetings, notes, etc.)
+    const dateField = dateType === 'creation' 
+      ? ch.created_at 
+      : (ch.last_activity_at || ch.pipeline_stage_changed_at || ch.updated_at);
+    
     if (!dateField) return false;
     const d = new Date(dateField);
     return d >= range.start && d <= range.end;
@@ -582,7 +645,7 @@ export default function PipelinePage() {
               <div className="flex-1 text-xs text-[#5a6078] font-medium">{periodLabel}</div>
             )}
             <div className="flex flex-col gap-1">
-              {[{ key: 'creation', label: 'Creación' }, { key: 'stage_change', label: 'Cambio fase' }].map(dt => (
+              {[{ key: 'creation', label: 'Creación' }, { key: 'activity', label: 'Actividad' }].map(dt => (
                 <button key={dt.key} onClick={() => setDateType(dt.key)}
                   className="px-2 py-0.5 rounded text-[9px] font-bold transition-all"
                   style={{
@@ -593,6 +656,14 @@ export default function PipelinePage() {
               ))}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Loading indicator for activities */}
+      {loadingActivities && dateType !== 'creation' && (
+        <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded-lg flex items-center gap-2">
+          <Loader2 size={14} className="animate-spin text-blue-600" />
+          <span className="text-xs text-blue-600 font-semibold">Cargando actividad...</span>
         </div>
       )}
 
@@ -683,7 +754,7 @@ export default function PipelinePage() {
       </div>
 
       {/* Kanban / Mobile */}
-      {loading ? (
+      {loading || loadingActivities ? (
         <div className="flex items-center justify-center py-16"><Loader2 size={24} className="animate-spin text-[#E87A1E]" /></div>
       ) : isMobile ? (
         <PipelineMobile channelsByStage={channelsByStage} onMove={moveChannel} loading={loading}
