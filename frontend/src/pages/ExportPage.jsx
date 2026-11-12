@@ -481,9 +481,9 @@ export default function ExportPage() {
                   {fields.map(field => {
                     const checked = selectedFields.includes(field.id);
                     return (
-                      <label key={field.id} className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors ${checked ? 'border-brand-200 bg-brand-50/60 text-text-primary' : 'border-surface-3 text-text-secondary hover:bg-surface-1'}`}>
-                        <input type="checkbox" checked={checked} onChange={() => toggleField(field.id)} className="sr-only" />
-                        <span className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border ${checked ? 'border-brand-500 bg-brand-500 text-white' : 'border-surface-4 bg-white'}`}>{checked && <Check size={11} strokeWidth={3} />}</span>
+                      <label key={field.id} className={`relative flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs transition-colors focus-within:ring-2 focus-within:ring-brand-400 ${checked ? 'border-brand-200 bg-brand-50/60 text-text-primary' : 'border-surface-3 text-text-secondary hover:bg-surface-1'}`}>
+                        <input type="checkbox" checked={checked} onChange={() => toggleField(field.id)} className="absolute inset-0 m-0 h-full w-full cursor-pointer opacity-0" />
+                        <span aria-hidden="true" className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border ${checked ? 'border-brand-500 bg-brand-500 text-white' : 'border-surface-4 bg-white'}`}>{checked && <Check size={11} strokeWidth={3} />}</span>
                         <span>{field.label}</span>
                       </label>
                     );
