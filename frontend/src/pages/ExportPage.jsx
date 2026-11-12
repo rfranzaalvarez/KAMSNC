@@ -76,9 +76,22 @@ const LEAD_ORIGIN_FIELD = {
   value: row => leadOriginGroups(row.lead_source).map(group => group.toUpperCase()).join(' + ') || 'Sin definir',
 };
 
+const BUSINESS_AREA_FIELD = {
+  id: 'business_area', label: 'Área de negocio', group: 'Identificación',
+  value: row => businessAreaForOwner(row._responsible) || 'Sin asignar a un área',
+};
+
+function businessAreaForOwner(name = '') {
+  const normalized = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+  if (/^(lucia|andrea|claudia)(\s|$)/.test(normalized)) return 'Nuevos Negocios';
+  if (/^(judith|egoitz)(\s|$)/.test(normalized) || /^miguel(?:\s+angel)?(?:\s+izquierdo\b.*)?$/.test(normalized)) return 'CAES';
+  return null;
+}
+
 const CHANNEL_FIELDS = [
   { id: 'name', label: 'Nombre', group: 'Identificación', value: row => row.name || '' },
   { id: 'responsible', label: 'Responsable', group: 'Identificación', value: row => row._responsible || '' },
+  BUSINESS_AREA_FIELD,
   LEAD_ORIGIN_FIELD,
   { id: 'status', label: 'Estado', group: 'Identificación', value: row => STATUS_LABELS[row.status] || row.status || '' },
   { id: 'pipeline_stage', label: 'Fase del pipeline', group: 'Identificación', value: row => STAGE_LABELS[row.pipeline_stage] || row.pipeline_stage || '' },
@@ -121,6 +134,7 @@ const CHANNEL_FIELDS = [
 const LEAD_FIELDS = [
   { id: 'name', label: 'Lead', group: 'Identificación', value: row => row.name || '' },
   { id: 'responsible', label: 'Responsable', group: 'Identificación', value: row => row._responsible || '' },
+  BUSINESS_AREA_FIELD,
   LEAD_ORIGIN_FIELD,
   { id: 'status', label: 'Estado actual', group: 'Situación actual', value: row => STATUS_LABELS[row.status] || row.status || '' },
   { id: 'pipeline_stage', label: 'Fase actual', group: 'Situación actual', value: row => STAGE_LABELS[row.pipeline_stage] || row.pipeline_stage || '' },
@@ -193,14 +207,18 @@ export default function ExportPage() {
   const [dataset, setDataset] = useState('channels');
   const [format, setFormat] = useState('xlsx');
   const [selectedFields, setSelectedFields] = useState(DEFAULT_FIELDS.channels);
-  const [teamKams, setTeamKams] = useState([]);
+  const [teamMembers, setTeamMembers] = useState([]);
   const [ownerFilter, setOwnerFilter] = useState('team');
   const [exporting, setExporting] = useState(false);
   const [done, setDone] = useState(false);
   const [savedPreference, setSavedPreference] = useState(false);
 
   const canSeeCaesFields = profile?.benchmark_profile !== 'new_business';
-  const availableFields = useMemo(() => fieldCatalog(dataset).filter(field => canSeeCaesFields || !field.caesOnly), [dataset, canSeeCaesFields]);
+  const canExportBusinessArea = profile?.benchmark_profile === 'integrated';
+  const teamKams = teamMembers.filter(person => person.role === 'kam' || (canExportBusinessArea && dataset !== 'visits'));
+  const availableFields = useMemo(() => fieldCatalog(dataset).filter(field =>
+    (canSeeCaesFields || !field.caesOnly) && (canExportBusinessArea || field.id !== 'business_area')
+  ), [dataset, canSeeCaesFields, canExportBusinessArea]);
   const groupedFields = useMemo(() => availableFields.reduce((groups, field) => {
     if (!groups[field.group]) groups[field.group] = [];
     groups[field.group].push(field);
@@ -209,7 +227,7 @@ export default function ExportPage() {
 
   useEffect(() => {
     if (user) loadTeamScope();
-  }, [user?.id, isManager]);
+  }, [user?.id, isManager, canExportBusinessArea]);
 
   useEffect(() => {
     if (!user) return;
@@ -219,22 +237,24 @@ export default function ExportPage() {
       preference = JSON.parse(localStorage.getItem(`kamapp_export_preferences:${user.id}:${dataset}`));
     } catch {}
     const restoredFields = (preference?.fields || []).filter(id => allowedIds.has(id));
-    setSelectedFields(restoredFields.length ? restoredFields : DEFAULT_FIELDS[dataset].filter(id => allowedIds.has(id)));
+    const defaultFields = [...DEFAULT_FIELDS[dataset]];
+    if (allowedIds.has('business_area')) defaultFields.splice(2, 0, 'business_area');
+    setSelectedFields(restoredFields.length ? restoredFields : defaultFields.filter(id => allowedIds.has(id)));
     setFormat(preference?.format === 'csv' ? 'csv' : 'xlsx');
     setSavedPreference(restoredFields.length > 0);
     setDone(false);
-  }, [dataset, user?.id, canSeeCaesFields]);
+  }, [dataset, user?.id, availableFields]);
 
   async function loadTeamScope() {
     if (!isManager) {
-      setTeamKams([]);
+      setTeamMembers([]);
       setOwnerFilter(user.id);
       return;
     }
     const { data, error } = await supabase.from('profiles').select('id, full_name, role, reports_to').eq('is_active', true).order('full_name');
     if (error) {
       console.error('No se pudo cargar la jerarquía de exportación:', error);
-      setTeamKams([]);
+      setTeamMembers([]);
       return;
     }
     const descendants = [];
@@ -244,10 +264,11 @@ export default function ExportPage() {
       const currentManagers = new Set(managersToExpand);
       const children = (data || []).filter(person => currentManagers.has(person.reports_to) && !visited.has(person.id));
       children.forEach(person => visited.add(person.id));
-      descendants.push(...children.filter(person => person.role === 'kam'));
+      descendants.push(...children.filter(person => person.role === 'kam' ||
+        (canExportBusinessArea && ['coordinator', 'manager'].includes(person.role) && businessAreaForOwner(person.full_name || ''))));
       managersToExpand = children.filter(person => ['coordinator', 'manager', 'director'].includes(person.role)).map(person => person.id);
     }
-    setTeamKams(descendants);
+    setTeamMembers(descendants);
     setOwnerFilter('team');
   }
 
